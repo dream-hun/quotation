@@ -1,0 +1,49 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Console\Commands;
+
+use App\Models\AuditEvent;
+use App\Models\User;
+use App\Models\UserRole;
+use Illuminate\Console\Attributes\Description;
+use Illuminate\Console\Attributes\Signature;
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+
+#[Description('Bootstrap the first administrator without default passwords')]
+#[Signature('procurement:setup {email : Existing active account email to make the first administrator}')]
+final class SetupProcurement extends Command
+{
+    public function handle(): int
+    {
+        $email = $this->argument('email');
+
+        return DB::transaction(function () use ($email): int {
+            if (UserRole::query()->where('role_code', 'administrator')->exists()) {
+                $this->error('An administrator already exists. Use Administration to manage access.');
+
+                return self::FAILURE;
+            }
+
+            $user = User::query()->where('normalized_email', mb_strtolower($email))->lockForUpdate()->first();
+            if ($user === null || $user->status !== 'active' || $user->supplierMembership()->exists()) {
+                $this->error('Register an active internal account first.');
+
+                return self::FAILURE;
+            }
+
+            $user->roles()->create(['role_code' => 'administrator', 'assigned_by' => $user->id]);
+            AuditEvent::query()->create([
+                'actor_user_id' => $user->id, 'actor_label' => 'Installation setup', 'action' => 'administrator.bootstrapped',
+                'target_type' => 'User', 'target_id' => $user->uuid, 'occurred_at' => now(),
+                'correlation_id' => (string) Str::uuid(), 'safe_details' => [],
+            ]);
+            $this->info('Administrator assigned. Sign in and configure currencies, organization, suppliers and accounts.');
+
+            return self::SUCCESS;
+        });
+    }
+}

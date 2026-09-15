@@ -1,0 +1,450 @@
+import {
+    assess,
+    decide,
+    freeze,
+} from '@/actions/App/Http/Controllers/EvaluationController';
+import {
+    ActionDialog,
+    Section,
+    SelectField,
+    Status,
+    TextField,
+} from '@/components/procurement/shared';
+import { FrozenEvidence } from '@/components/procurement/frozen-evidence';
+import type {
+    Candidate,
+    Procurement,
+    Revision,
+    Round,
+} from '@/types/procurement';
+
+function Assessment({
+    request,
+    revision,
+    candidate,
+}: {
+    request: Procurement;
+    revision: Revision;
+    candidate: Candidate;
+}) {
+    return (
+        <ActionDialog
+            title="Record findings"
+            action={assess(request.uuid)}
+            description="Record evidence for every specification and criterion. Eligibility is calculated from your findings."
+        >
+            <input type="hidden" name="candidate_uuid" value={candidate.uuid} />
+            <input
+                type="hidden"
+                name="lock_version"
+                value={candidate.lock_version}
+            />
+            {revision.lines.map((line, index) => {
+                const finding = candidate.lines.find(
+                    (entry) => entry.uuid === line.uuid,
+                );
+                return (
+                    <div
+                        key={line.uuid}
+                        className="grid gap-3 rounded-lg border p-4"
+                    >
+                        <p className="font-medium">
+                            {
+                                request.items.find(
+                                    (item) => item.uuid === line.item_uuid,
+                                )?.description
+                            }
+                        </p>
+                        <p className="text-muted-foreground text-sm">
+                            {line.offered_description} · Supplier response:{' '}
+                            {line.supplier_compliance_response}
+                        </p>
+                        <input
+                            type="hidden"
+                            name={'lines[' + index + '][uuid]'}
+                            value={line.uuid}
+                        />
+                        <SelectField
+                            label="Specification finding"
+                            name={'lines[' + index + '][result]'}
+                            defaultValue={finding?.result ?? 'pending'}
+                        >
+                            <option value="pending">Pending</option>
+                            <option value="pass">Pass</option>
+                            <option value="fail">Fail</option>
+                        </SelectField>
+                        <TextField
+                            label="Evidence"
+                            name={'lines[' + index + '][finding]'}
+                            defaultValue={finding?.finding ?? ''}
+                            required
+                        />
+                    </div>
+                );
+            })}
+            {request.criteria.map((criterion, index) => {
+                const finding = candidate.criteria.find(
+                    (entry) => entry.uuid === criterion.uuid,
+                );
+                return (
+                    <div
+                        key={criterion.uuid}
+                        className="grid gap-3 rounded-lg border p-4"
+                    >
+                        <p className="font-medium">
+                            {criterion.name}
+                            {criterion.mandatory ? ' · Mandatory' : ''}
+                        </p>
+                        <p className="text-muted-foreground text-sm">
+                            {criterion.assessment_rule}
+                        </p>
+                        <input
+                            type="hidden"
+                            name={'criteria[' + index + '][uuid]'}
+                            value={criterion.uuid}
+                        />
+                        <SelectField
+                            label="Criterion finding"
+                            name={'criteria[' + index + '][result]'}
+                            defaultValue={finding?.result ?? 'pending'}
+                        >
+                            <option value="pending">Pending</option>
+                            <option value="pass">Pass</option>
+                            <option value="fail">Fail</option>
+                        </SelectField>
+                        <TextField
+                            label="Finding and rationale"
+                            name={'criteria[' + index + '][finding]'}
+                            defaultValue={finding?.finding ?? ''}
+                            required
+                        />
+                    </div>
+                );
+            })}
+            <TextField
+                label="Exclusion reason (required when excluded)"
+                name="reason"
+                defaultValue={candidate.disposition_reason ?? ''}
+            />
+        </ActionDialog>
+    );
+}
+
+export function EvaluationPanel({
+    request,
+    revisions,
+    rounds,
+    buyer,
+}: {
+    request: Procurement;
+    revisions: Revision[];
+    rounds: Round[];
+    buyer: boolean;
+}) {
+    const active = rounds[0];
+    return (
+        <Section
+            title="Quotation comparison"
+            description="Compare total cost, delivery, payment terms and verified compliance. A low price does not authorize an award."
+        >
+            {revisions.length === 0 ? (
+                <p className="text-muted-foreground text-sm">
+                    No submitted quotations. Record the outcome and cancel or
+                    clone the request.
+                </p>
+            ) : (
+                <div className="overflow-x-auto">
+                    <table className="w-full border-collapse text-left text-sm">
+                        <thead>
+                            <tr>
+                                <th className="bg-card sticky left-0 z-10 min-w-44 border-b p-3">
+                                    Comparison dimension
+                                </th>
+                                {revisions.map((revision) => (
+                                    <th
+                                        key={revision.uuid}
+                                        className="min-w-64 border-b p-3"
+                                    >
+                                        {revision.supplier_name_snapshot}
+                                        <p className="text-muted-foreground mt-1 font-normal">
+                                            Revision {revision.revision_number}
+                                        </p>
+                                    </th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {[
+                                {
+                                    name: 'Total payable',
+                                    cell: (revision: Revision) => (
+                                        <strong>
+                                            {request.currency_code}{' '}
+                                            {revision.total_amount}
+                                        </strong>
+                                    ),
+                                },
+                                {
+                                    name: 'Delivery',
+                                    cell: (revision: Revision) => (
+                                        <>
+                                            {revision.delivery_days} days ·
+                                            charge {revision.delivery_charge}
+                                        </>
+                                    ),
+                                },
+                                {
+                                    name: 'Payment terms',
+                                    cell: (revision: Revision) => (
+                                        <>
+                                            {revision.payment_terms}
+                                            <p className="text-muted-foreground mt-1 text-xs">
+                                                Advance:{' '}
+                                                {revision.advance_percent ??
+                                                    'Not specified'}{' '}
+                                                · Balance days:{' '}
+                                                {revision.balance_due_days ??
+                                                    'Not specified'}
+                                            </p>
+                                        </>
+                                    ),
+                                },
+                                {
+                                    name: 'Valid through',
+                                    cell: (revision: Revision) => (
+                                        <>
+                                            {revision.valid_until?.slice(0, 10)}
+                                        </>
+                                    ),
+                                },
+                            ].map((row) => (
+                                <tr key={row.name}>
+                                    <th className="bg-card sticky left-0 border-b p-3 font-medium">
+                                        {row.name}
+                                    </th>
+                                    {revisions.map((revision) => (
+                                        <td
+                                            key={revision.uuid}
+                                            className="border-b p-3"
+                                        >
+                                            {row.cell(revision)}
+                                        </td>
+                                    ))}
+                                </tr>
+                            ))}
+                            {request.items.map((item) => (
+                                <tr key={item.uuid}>
+                                    <th className="bg-card sticky left-0 border-b p-3 font-medium">
+                                        {item.description}
+                                        <p className="text-muted-foreground mt-1 text-xs font-normal">
+                                            {item.quantity} {item.unit}
+                                        </p>
+                                    </th>
+                                    {revisions.map((revision) => {
+                                        const line = revision.lines.find(
+                                            (entry) =>
+                                                entry.item_uuid === item.uuid,
+                                        );
+                                        return (
+                                            <td
+                                                key={revision.uuid}
+                                                className="border-b p-3"
+                                            >
+                                                <strong>
+                                                    {line?.line_total}
+                                                </strong>
+                                                <p className="text-muted-foreground mt-1 text-xs">
+                                                    Unit {line?.unit_price} ·
+                                                    Discount{' '}
+                                                    {line?.discount_amount} ·
+                                                    Net {line?.line_net} · Tax{' '}
+                                                    {line?.tax_amount}
+                                                </p>
+                                                <p className="mt-2">
+                                                    {
+                                                        line?.supplier_compliance_response
+                                                    }
+                                                </p>
+                                            </td>
+                                        );
+                                    })}
+                                </tr>
+                            ))}
+                            <tr>
+                                <th className="bg-card sticky left-0 p-3 font-medium">
+                                    Evaluator disposition
+                                </th>
+                                {revisions.map((revision) => {
+                                    const candidate = active?.candidates.find(
+                                        (entry) =>
+                                            entry.revision_uuid ===
+                                            revision.uuid,
+                                    );
+                                    return (
+                                        <td key={revision.uuid} className="p-3">
+                                            <div className="grid gap-3">
+                                                <Status
+                                                    value={
+                                                        candidate?.disposition ??
+                                                        'pending'
+                                                    }
+                                                />
+                                                <p>
+                                                    {
+                                                        candidate?.disposition_reason
+                                                    }
+                                                </p>
+                                                {candidate &&
+                                                    buyer &&
+                                                    active?.status ===
+                                                        'draft' && (
+                                                        <Assessment
+                                                            request={request}
+                                                            revision={revision}
+                                                            candidate={
+                                                                candidate
+                                                            }
+                                                        />
+                                                    )}
+                                            </div>
+                                        </td>
+                                    );
+                                })}
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            )}
+            {active?.canFreeze && (
+                <div className="mt-5 border-t pt-5">
+                    {active.candidates.filter(
+                        (candidate) => candidate.disposition === 'eligible',
+                    ).length === 1 && (
+                        <p className="mb-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                            Only one eligible quotation. A participation
+                            justification is required.
+                        </p>
+                    )}
+                    <ActionDialog
+                        title="Recommend for approval"
+                        action={freeze(request.uuid)}
+                        submit="Freeze and request approval"
+                        description="This freezes the comparison, findings and recommendation. Only the assigned independent approver can decide the award."
+                    >
+                        <input
+                            type="hidden"
+                            name="lock_version"
+                            value={active.lock_version}
+                        />
+                        <SelectField
+                            label="Recommended quotation"
+                            name="candidate_uuid"
+                            required
+                        >
+                            <option value="">Select eligible quotation</option>
+                            {active.candidates
+                                .filter(
+                                    (candidate) =>
+                                        candidate.disposition === 'eligible',
+                                )
+                                .map((candidate) => (
+                                    <option
+                                        key={candidate.uuid}
+                                        value={candidate.uuid}
+                                    >
+                                        {
+                                            revisions.find(
+                                                (revision) =>
+                                                    revision.uuid ===
+                                                    candidate.revision_uuid,
+                                            )?.supplier_name_snapshot
+                                        }
+                                    </option>
+                                ))}
+                        </SelectField>
+                        <TextField
+                            label="Selection rationale and tradeoffs"
+                            name="reason"
+                            required
+                        />
+                        <TextField
+                            label="Participation justification (if only one eligible offer)"
+                            name="participation_justification"
+                        />
+                    </ActionDialog>
+                </div>
+            )}
+            {rounds.map((round) => (
+                <div
+                    key={round.uuid}
+                    className="mt-6 grid gap-3 rounded-lg border p-4"
+                >
+                    <div className="flex justify-between">
+                        <h3 className="font-medium">
+                            Evaluation round {round.round_number}
+                        </h3>
+                        <Status value={round.status} />
+                    </div>
+                    {round.recommendation_reason && (
+                        <p className="text-sm">{round.recommendation_reason}</p>
+                    )}
+                    {round.participation_justification && (
+                        <p className="text-muted-foreground text-sm">
+                            Participation: {round.participation_justification}
+                        </p>
+                    )}
+                    {round.approval && (
+                        <p className="text-sm">
+                            Decision: <Status value={round.approval.status} />{' '}
+                            {round.approval.decision_reason}
+                        </p>
+                    )}
+                    {round.frozen_snapshot && <FrozenEvidence round={round} />}
+                    {round.canDecide &&
+                        round.approval?.status === 'pending' && (
+                            <div className="flex flex-wrap gap-2">
+                                {['approve', 'return', 'reject'].map(
+                                    (decision) => (
+                                        <ActionDialog
+                                            key={decision}
+                                            title={
+                                                decision[0].toUpperCase() +
+                                                decision.slice(1)
+                                            }
+                                            action={decide(request.uuid)}
+                                            submit={'Confirm ' + decision}
+                                            description={
+                                                decision === 'approve'
+                                                    ? 'Approve the frozen recommendation and record one award. This decision is final.'
+                                                    : 'Record a reason. Return creates a new evaluation round; rejection ends this procurement.'
+                                            }
+                                        >
+                                            <input
+                                                type="hidden"
+                                                name="lock_version"
+                                                value={
+                                                    round.approval?.lock_version
+                                                }
+                                            />
+                                            <input
+                                                type="hidden"
+                                                name="operation"
+                                                value={decision}
+                                            />
+                                            <TextField
+                                                label="Decision reason"
+                                                name="reason"
+                                                required={
+                                                    decision !== 'approve'
+                                                }
+                                            />
+                                        </ActionDialog>
+                                    ),
+                                )}
+                            </div>
+                        )}
+                </div>
+            ))}
+        </Section>
+    );
+}
