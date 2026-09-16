@@ -24,8 +24,8 @@ return new class extends Migration
             'model_morph_key' => Config::string('permission.column_names.model_morph_key'),
             'team_foreign_key' => Config::string('permission.column_names.team_foreign_key'),
         ];
-        $pivotRole = config('permission.column_names.role_pivot_key', 'role_id');
-        $pivotPermission = config('permission.column_names.permission_pivot_key', 'permission_id');
+        $pivotRole = config('permission.column_names.role_pivot_key') ?? 'role_id';
+        $pivotPermission = config('permission.column_names.permission_pivot_key') ?? 'permission_id';
 
         throw_if(! is_string($pivotRole) || ! is_string($pivotPermission), InvalidArgumentException::class, 'Permission pivot keys must be strings.');
 
