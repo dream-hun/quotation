@@ -4,6 +4,7 @@ import {
 } from '@/actions/App/Http/Controllers/QuotationController';
 import {
     ActionDialog,
+    DateField,
     Field,
     TextField,
     timestamp,
@@ -39,11 +40,10 @@ export function QuotationEditor({
                     defaultValue={source?.supplier_reference ?? ''}
                 />
                 <div className="grid gap-4 sm:grid-cols-2">
-                    <Field
+                    <DateField
                         label="Valid through (organization date)"
                         name="valid_until"
-                        type="date"
-                        defaultValue={source?.valid_until?.slice(0, 10) ?? ''}
+                        defaultValue={source?.valid_until}
                     />
                     <Field
                         label="Delivery days after award notification"

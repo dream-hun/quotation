@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Enums\ProcurementRole;
 use App\Models\AuditEvent;
 use App\Models\User;
-use App\Models\UserRole;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
@@ -22,7 +22,7 @@ final class SetupProcurement extends Command
         $email = $this->argument('email');
 
         return DB::transaction(function () use ($email): int {
-            if (UserRole::query()->where('role_code', 'administrator')->exists()) {
+            if (User::role(ProcurementRole::Administrator)->exists()) {
                 $this->error('An administrator already exists. Use Administration to manage access.');
 
                 return self::FAILURE;
@@ -35,7 +35,7 @@ final class SetupProcurement extends Command
                 return self::FAILURE;
             }
 
-            $user->roles()->create(['role_code' => 'administrator', 'assigned_by' => $user->id]);
+            $user->assignRole(ProcurementRole::Administrator);
             AuditEvent::query()->create([
                 'actor_user_id' => $user->id, 'actor_label' => 'Installation setup', 'action' => 'administrator.bootstrapped',
                 'target_type' => 'User', 'target_id' => $user->uuid, 'occurred_at' => now(),

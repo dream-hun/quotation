@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use App\Concerns\ProcurementAccess;
+use App\Enums\ProcurementPermission;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -42,9 +43,13 @@ final class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'name' => config('app.name'),
             'flash' => ['success' => $request->session()->get('success')],
-            'isAdministrator' => $request->user() !== null && ProcurementAccess::role($request->user(), 'administrator'),
+            'isAdministrator' => $request->user() !== null && ProcurementAccess::can($request->user(), ProcurementPermission::ManageAccess),
             'auth' => [
                 'user' => $request->user(),
+            ],
+            'uploads' => [
+                'maxKilobytes' => config()->integer('procurement.max_upload_kilobytes'),
+                'chunkKilobytes' => config()->integer('procurement.upload_chunk_kilobytes'),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];

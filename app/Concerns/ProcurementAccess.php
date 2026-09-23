@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Concerns;
 
+use App\Enums\ProcurementPermission;
 use App\Models\PurchaseRequest;
 use App\Models\SupplierMember;
 use App\Models\User;
@@ -11,9 +12,17 @@ use Illuminate\Database\Eloquent\Builder;
 
 final class ProcurementAccess
 {
-    public static function role(User $user, string $role): bool
+    /**
+     * Whether an active internal user holds the permission through one of their roles.
+     *
+     * Roles are read from the database on every call instead of the loaded relation or
+     * permission cache, so a revocation takes effect immediately for long-lived user instances.
+     */
+    public static function can(User $user, ProcurementPermission $permission): bool
     {
-        return self::hasAnyRole($user, [$role]);
+        return $user->status === 'active'
+            && $user->roles()->whereHas('permissions', fn (Builder $query) => $query->where('name', $permission->value))->exists()
+            && ! $user->supplierMembership()->where('status', 'active')->exists();
     }
 
     public static function supplierId(User $user): ?int
@@ -28,7 +37,7 @@ final class ProcurementAccess
 
     public static function internal(User $user): bool
     {
-        return self::hasAnyRole($user, ['buyer', 'approver', 'auditor']);
+        return self::can($user, ProcurementPermission::ViewAllRequests);
     }
 
     /** @return Builder<PurchaseRequest> */
@@ -52,7 +61,7 @@ final class ProcurementAccess
 
     public static function buyer(User $user): void
     {
-        abort_unless(self::role($user, 'buyer'), 403);
+        abort_unless(self::can($user, ProcurementPermission::ManageRequests), 403);
     }
 
     public static function supplier(User $user, PurchaseRequest $request): int
@@ -68,12 +77,5 @@ final class ProcurementAccess
     {
         return self::internal($user) && $request->published_at !== null
             && $request->deadline_at !== null && ProcurementGuard::clock()->greaterThanOrEqualTo($request->deadline_at);
-    }
-
-    /** @param list<string> $roles */
-    private static function hasAnyRole(User $user, array $roles): bool
-    {
-        return $user->status === 'active' && $user->roles()->whereIn('role_code', $roles)->exists()
-            && ! $user->supplierMembership()->where('status', 'active')->exists();
     }
 }

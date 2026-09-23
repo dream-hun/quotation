@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Concerns\ProcurementAccess;
+use App\Enums\ProcurementPermission;
 use App\Models\Organization;
 use App\Models\User;
 
@@ -32,7 +33,7 @@ final readonly class ReadProcurementIndex
         }
 
         $requests = $query->select(['id', 'uuid', 'request_number', 'title', 'status', 'deadline_at', 'timezone', 'currency_code', 'created_at', 'assigned_approver_id'])->latest()->orderByDesc('id')->paginate(20)->withQueryString();
-        $buyer = ProcurementAccess::role($actor, 'buyer');
+        $buyer = ProcurementAccess::can($actor, ProcurementPermission::ManageRequests);
         $notifications = $actor->procurementNotifications()->whereHas('request', fn ($query) => $query->whereIn('id', $visibleRequests->select('id')))
             ->with('request:id,uuid')->orderByDesc('id')->limit(15)->get()->map(fn ($notification): array => [
                 'uuid' => $notification->uuid, 'event_type' => $notification->event_type,
@@ -41,7 +42,7 @@ final readonly class ReadProcurementIndex
 
         return [
             'requests' => $requests, 'counts' => $counts, 'filters' => $filters, 'notifications' => $notifications,
-            'canCreate' => $buyer, 'isAdministrator' => ProcurementAccess::role($actor, 'administrator'),
+            'canCreate' => $buyer, 'isAdministrator' => ProcurementAccess::can($actor, ProcurementPermission::ManageAccess),
             'isSupplier' => ProcurementAccess::supplierId($actor) !== null,
             'organization' => Organization::query()->first()?->only(['name', 'timezone', 'default_currency_code']),
             ...$this->options->handle($buyer, $actor->id),

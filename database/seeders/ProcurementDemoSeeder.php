@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Enums\ProcurementRole;
 use App\Models\Currency;
 use App\Models\EvaluationCriterion;
 use App\Models\Invitation;
@@ -16,7 +17,6 @@ use App\Models\RequestItem;
 use App\Models\Supplier;
 use App\Models\SupplierMember;
 use App\Models\User;
-use App\Models\UserRole;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -42,8 +42,8 @@ final class ProcurementDemoSeeder extends Seeder
 
             $buyer = User::factory()->create(['name' => 'Demo Buyer', 'email' => 'buyer@procurement.example']);
             $approver = User::factory()->create(['name' => 'Demo Approver', 'email' => 'approver@procurement.example']);
-            UserRole::factory()->create(['user_id' => $buyer->id, 'role_code' => 'buyer', 'assigned_by' => $buyer->id]);
-            UserRole::factory()->create(['user_id' => $approver->id, 'role_code' => 'approver', 'assigned_by' => $buyer->id]);
+            $buyer->assignRole(ProcurementRole::Buyer);
+            $approver->assignRole(ProcurementRole::Approver);
 
             $request = PurchaseRequest::factory()->create([
                 'organization_id' => $organization->id,

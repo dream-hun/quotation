@@ -6,6 +6,8 @@ namespace App\Actions;
 
 use App\Concerns\ProcurementAccess;
 use App\Concerns\ProcurementGuard;
+use App\Enums\ProcurementPermission;
+use App\Enums\ProcurementRole;
 use App\Models\Currency;
 use App\Models\Organization;
 use App\Models\PurchaseRequest;
@@ -24,7 +26,7 @@ final readonly class ManageProcurementAccess
     /** @param Input $data */
     public function handle(User $actor, array $data): bool
     {
-        abort_unless(ProcurementAccess::role($actor, 'administrator'), 403);
+        abort_unless(ProcurementAccess::can($actor, ProcurementPermission::ManageAccess), 403);
         $newUser = null;
         DB::transaction(function () use ($actor, $data, &$newUser): void {
             $type = $data['type'];
@@ -57,12 +59,12 @@ final readonly class ManageProcurementAccess
 
                 $roles = $data['roles'] ?? [];
                 ProcurementGuard::require(empty($data['supplier_uuid']) || $roles === [], 'Supplier representatives cannot hold internal roles.');
-                ProcurementGuard::require($record->id !== $actor->id || (($data['status'] ?? 'active') === 'active' && in_array('administrator', $roles, true)), 'Keep your own administrator account active.');
-                if ($record->exists && (($data['status'] ?? 'active') !== 'active' || ! in_array('approver', $roles, true))) {
+                ProcurementGuard::require($record->id !== $actor->id || (($data['status'] ?? 'active') === 'active' && in_array(ProcurementRole::Administrator->value, $roles, true)), 'Keep your own administrator account active.');
+                if ($record->exists && (($data['status'] ?? 'active') !== 'active' || ! in_array(ProcurementRole::Approver->value, $roles, true))) {
                     $assigned = PurchaseRequest::query()->where('assigned_approver_id', $record->id)->whereNotIn('status', ['awarded', 'rejected', 'cancelled'])->lockForUpdate()->get();
                     foreach ($assigned as $request) {
                         $replacement = User::query()->where('uuid', $data['replacement_uuid'] ?? '')->first();
-                        ProcurementGuard::require($replacement !== null && ProcurementAccess::role($replacement, 'approver') && filled($data['reason'] ?? null), 'Provide an independent replacement approver and a reason.');
+                        ProcurementGuard::require($replacement !== null && ProcurementAccess::can($replacement, ProcurementPermission::DecideApprovals) && filled($data['reason'] ?? null), 'Provide an independent replacement approver and a reason.');
                         $request->assigned_approver_id = $replacement->id;
                         $round = $request->evaluationRounds()->orderByDesc('round_number')->first();
                         ProcurementGuard::approver($request, $round?->prepared_by);
@@ -80,15 +82,13 @@ final readonly class ManageProcurementAccess
                 $isNew = ! $record->exists;
                 $record->lock_version = ($record->lock_version ?? 0) + 1;
                 $record->save();
-                $record->roles()->delete();
+                $record->syncRoles([]);
                 $record->supplierMembership()->delete();
                 if (! empty($data['supplier_uuid'])) {
                     $supplier = Supplier::query()->where('uuid', $data['supplier_uuid'])->where('status', 'active')->firstOrFail();
                     $record->supplierMembership()->create(['supplier_id' => $supplier->id, 'status' => 'active', 'assigned_by' => $actor->id]);
                 } else {
-                    foreach ($roles as $role) {
-                        $record->roles()->create(['role_code' => $role, 'assigned_by' => $actor->id]);
-                    }
+                    $record->syncRoles($roles);
                 }
 
                 if ($isNew) {

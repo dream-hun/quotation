@@ -6,6 +6,7 @@ import {
 } from '@/actions/App/Http/Controllers/ProcurementController';
 import { RequestEditor } from '@/components/procurement/request-editor';
 import {
+    DateField,
     EmptyState,
     Field,
     Flash,
@@ -157,16 +158,16 @@ export default function Index({
                                 placeholder="Supplier name"
                             />
                         )}
-                        <Field
+                        <DateField
                             label="Created from"
                             name="from"
-                            type="date"
+                            placeholder="Any date"
                             defaultValue={filters.from}
                         />
-                        <Field
+                        <DateField
                             label="Created to"
                             name="to"
-                            type="date"
+                            placeholder="Any date"
                             defaultValue={filters.to}
                         />
                         <div className="flex gap-2">

@@ -36,6 +36,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::post('procurement/{purchaseRequest}/files', [ProcurementFileController::class, 'store'])->name('files.store');
         Route::post('administration', [AdministrationController::class, 'store'])->name('administration.store');
     });
+    Route::post('procurement/{purchaseRequest}/files/chunks', [ProcurementFileController::class, 'chunk'])
+        ->middleware('throttle:600,1')->name('files.chunk');
 });
 
 require __DIR__.'/settings.php';

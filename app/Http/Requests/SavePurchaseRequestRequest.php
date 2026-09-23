@@ -6,6 +6,7 @@ namespace App\Http\Requests;
 
 use App\Actions\SavePurchaseRequest;
 use App\Concerns\ProcurementAccess;
+use App\Enums\ProcurementPermission;
 use Illuminate\Foundation\Http\FormRequest;
 
 /** @phpstan-import-type Input from SavePurchaseRequest */
@@ -27,7 +28,7 @@ final class SavePurchaseRequestRequest extends FormRequest
             return false;
         }
 
-        return ProcurementAccess::role($actor, 'buyer');
+        return ProcurementAccess::can($actor, ProcurementPermission::ManageRequests);
     }
 
     /** @return array<string, list<mixed>> */

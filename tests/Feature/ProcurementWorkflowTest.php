@@ -5,8 +5,10 @@ declare(strict_types=1);
 use App\Actions\AssessCandidate;
 use App\Actions\DeliverProcurementMail;
 use App\Actions\FreezeEvaluation;
+use App\Actions\PruneUploadChunks;
 use App\Actions\PublishPurchaseRequest;
 use App\Actions\SaveQuotation;
+use App\Actions\ScanProcurementFiles;
 use App\Actions\StartEvaluation;
 use App\Actions\SubmitQuotation;
 use App\Concerns\ProcurementAccess;
@@ -27,7 +29,6 @@ use App\Models\RequestItem;
 use App\Models\Supplier;
 use App\Models\SupplierMember;
 use App\Models\User;
-use App\Models\UserRole;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\UploadedFile;
@@ -45,8 +46,8 @@ function procurementScenario(): array
 {
     $buyer = User::factory()->create()->refresh();
     $approver = User::factory()->create()->refresh();
-    UserRole::factory()->create(['user_id' => $buyer->id, 'role_code' => 'buyer']);
-    UserRole::factory()->create(['user_id' => $approver->id, 'role_code' => 'approver']);
+    $buyer->assignRole('buyer');
+    $approver->assignRole('approver');
     $currency = Currency::factory()->create(['code' => 'USD', 'minor_digits' => 2]);
     $request = PurchaseRequest::factory()->create(['created_by' => $buyer->id, 'assigned_approver_id' => $approver->id, 'currency_code' => $currency->code]);
     RequestItem::factory()->create(['request_id' => $request->id, 'quantity' => '10']);
@@ -251,7 +252,7 @@ test('independent approval creates one award and returned evidence remains immut
 test('buyers can save incomplete drafts but cannot publish them', function (): void {
     Organization::factory()->create();
     $buyer = User::factory()->create()->refresh();
-    UserRole::factory()->create(['user_id' => $buyer->id, 'role_code' => 'buyer']);
+    $buyer->assignRole('buyer');
     $this->actingAs($buyer)->post(route('procurement.store'), [
         'lock_version' => 0, 'title' => 'Incomplete draft', 'items' => [['description' => 'Desk', 'specification' => '', 'quantity' => '1', 'unit' => 'each']], 'criteria' => [],
     ])->assertSessionHasNoErrors();
@@ -300,6 +301,121 @@ test('quarantined documents block submission and private downloads reveal no com
     expect($revision->refresh()->status)->toBe('draft');
 });
 
+/** @return array{content: string, upload_uuid: string} */
+function uploadInChunks(TestCase $test, User $user, PurchaseRequest $request, string $content, string $name = 'offer.pdf'): array
+{
+    $uploadUuid = (string) Str::uuid();
+    foreach (mb_str_split($content, 1024) as $index => $part) {
+        $test->actingAs($user)->post(route('files.chunk', $request), [
+            'upload_uuid' => $uploadUuid, 'chunk_index' => $index,
+            'chunk' => UploadedFile::fake()->createWithContent($name, $part),
+        ], ['Accept' => 'application/json'])->assertNoContent();
+    }
+
+    return ['content' => $content, 'upload_uuid' => $uploadUuid];
+}
+
+function chunkedPdf(): string
+{
+    return "%PDF-1.4\n".str_repeat('Quotation evidence line. ', 100)."\n%%EOF";
+}
+
+test('a document uploaded in chunks is reassembled into one quarantined attachment', function (): void {
+    Storage::fake('local');
+    config(['procurement.upload_chunk_kilobytes' => 1]);
+    $scenario = procurementScenario();
+    $revision = resolve(SaveQuotation::class)->handle($scenario['supplier'], $scenario['request'], quotationInput($scenario['request']));
+    $upload = uploadInChunks($this, $scenario['supplier'], $scenario['request'], chunkedPdf());
+
+    $this->post(route('files.store', $scenario['request']), [
+        'parent_type' => 'revision', 'parent_uuid' => $revision->uuid,
+        'upload_uuid' => $upload['upload_uuid'], 'total_chunks' => 3, 'file_name' => 'offer.pdf',
+    ])->assertSessionHasNoErrors();
+
+    $attachment = Attachment::query()->firstOrFail();
+    expect($attachment->original_name)->toBe('offer.pdf');
+    expect($attachment->scan_status)->toBe('pending');
+    expect($attachment->content_hash)->toBe(hash('sha256', $upload['content']));
+    expect(Storage::disk('local')->get($attachment->storage_key))->toBe($upload['content']);
+    expect(Storage::disk('local')->allFiles('procurement-chunks'))->toBe([]);
+});
+
+test('chunked uploads are rejected when incomplete, of a forbidden type, or owned by another user', function (string $case): void {
+    Storage::fake('local');
+    config(['procurement.upload_chunk_kilobytes' => 1]);
+    $scenario = procurementScenario();
+    $revision = resolve(SaveQuotation::class)->handle($scenario['supplier'], $scenario['request'], quotationInput($scenario['request']));
+    $content = $case === 'forbidden type' ? str_repeat('<?php echo 1; ?>', 150) : chunkedPdf();
+    $upload = uploadInChunks($this, $scenario['supplier'], $scenario['request'], $content, $case === 'forbidden type' ? 'offer.php' : 'offer.pdf');
+    $uploader = $scenario['supplier'];
+    if ($case === 'another user') {
+        $uploader = User::factory()->create()->refresh();
+        SupplierMember::factory()->create(['user_id' => $uploader->id, 'supplier_id' => SupplierMember::query()->where('user_id', $scenario['supplier']->id)->value('supplier_id')]);
+    }
+
+    $this->actingAs($uploader)->post(route('files.store', $scenario['request']), [
+        'parent_type' => 'revision', 'parent_uuid' => $revision->uuid, 'upload_uuid' => $upload['upload_uuid'],
+        'total_chunks' => $case === 'incomplete' ? 4 : 3, 'file_name' => $case === 'forbidden type' ? 'offer.php' : 'offer.pdf',
+    ])->assertSessionHasErrors('file');
+
+    $this->assertDatabaseCount('attachments', 0);
+})->with(['incomplete', 'forbidden type', 'another user']);
+
+test('only people who can view a request may upload chunks to it', function (): void {
+    Storage::fake('local');
+    $scenario = procurementScenario();
+    $outsider = User::factory()->create()->refresh();
+    SupplierMember::factory()->create(['user_id' => $outsider->id]);
+
+    $this->actingAs($outsider)->post(route('files.chunk', $scenario['request']), [
+        'upload_uuid' => (string) Str::uuid(), 'chunk_index' => 0,
+        'chunk' => UploadedFile::fake()->createWithContent('offer.pdf', chunkedPdf()),
+    ], ['Accept' => 'application/json'])->assertNotFound();
+
+    expect(Storage::disk('local')->allFiles('procurement-chunks'))->toBe([]);
+});
+
+test('abandoned chunked uploads are pruned after a day', function (): void {
+    Storage::fake('local');
+    config(['procurement.upload_chunk_kilobytes' => 1]);
+    $scenario = procurementScenario();
+    $abandoned = uploadInChunks($this, $scenario['supplier'], $scenario['request'], chunkedPdf());
+    $fresh = uploadInChunks($this, $scenario['supplier'], $scenario['request'], chunkedPdf());
+    foreach (Storage::disk('local')->files('procurement-chunks/'.$scenario['supplier']->uuid.'/'.$abandoned['upload_uuid']) as $chunk) {
+        touch(Storage::disk('local')->path($chunk), now()->subDays(2)->getTimestamp());
+    }
+
+    expect(resolve(PruneUploadChunks::class)->handle())->toBe(1);
+    expect(Storage::disk('local')->directories('procurement-chunks/'.$scenario['supplier']->uuid))
+        ->toBe(['procurement-chunks/'.$scenario['supplier']->uuid.'/'.$fresh['upload_uuid']]);
+});
+
+function fakeScanner(string $name, string $script): string
+{
+    $directory = sys_get_temp_dir().'/procurement-scanner-'.Str::random(8);
+    mkdir($directory);
+    file_put_contents($directory.'/'.$name, "#!/bin/sh\n".$script."\n");
+    chmod($directory.'/'.$name, 0755);
+
+    return $directory.'/'.$name;
+}
+
+test('scans record clean and infected results and keep failed scans pending', function (string $scanner, string $script, string $status): void {
+    Storage::fake('local');
+    Storage::disk('local')->put('procurement/offer.pdf', 'offer');
+    $attachment = Attachment::factory()->create(['storage_key' => 'procurement/offer.pdf', 'content_hash' => hash('sha256', 'offer'), 'scan_status' => 'pending']);
+    config(['procurement.scanner_binary' => fakeScanner($scanner, $script)]);
+
+    resolve(ScanProcurementFiles::class)->handle();
+
+    expect($attachment->refresh()->scan_status)->toBe($status);
+})->with([
+    'clean' => ['clamscan', 'exit 0', 'clean'],
+    'infected' => ['clamscan', 'exit 1', 'rejected'],
+    'scanner error' => ['clamscan', 'exit 2', 'pending'],
+    'clamdscan passes the file descriptor' => ['clamdscan', 'case " $* " in *" --fdpass "*) exit 0;; *) exit 2;; esac', 'clean'],
+]);
+
 test('an invalid line rolls back all draft writes', function (): void {
     $scenario = procurementScenario();
     $input = quotationInput($scenario['request']);
@@ -326,14 +442,14 @@ test('a failed audit insert rolls back submission and receipt', function (): voi
 test('administrators configure currencies organization suppliers and internal access', function (): void {
     Notification::fake();
     $admin = User::factory()->create()->refresh();
-    UserRole::factory()->create(['user_id' => $admin->id, 'role_code' => 'administrator']);
+    $admin->assignRole('administrator');
     $this->actingAs($admin)->post(route('administration.store'), ['type' => 'currency', 'lock_version' => 0, 'code' => 'USD', 'name' => 'US dollar', 'minor_digits' => 2, 'active' => true])->assertSessionHasNoErrors();
     $this->post(route('administration.store'), ['type' => 'organization', 'lock_version' => 0, 'name' => 'Buying Organization', 'timezone' => 'Africa/Kigali', 'default_currency_code' => 'USD'])->assertSessionHasNoErrors();
     $this->post(route('administration.store'), ['type' => 'supplier', 'lock_version' => 0, 'legal_name' => 'Supplier One', 'contact_email' => 'supplier@example.test', 'status' => 'active'])->assertSessionHasNoErrors();
     $this->post(route('administration.store'), ['type' => 'user', 'lock_version' => 0, 'name' => 'New Buyer', 'email' => 'buyer@example.test', 'status' => 'active', 'roles' => ['buyer']])->assertSessionHasNoErrors();
 
     $created = User::query()->where('email', 'buyer@example.test')->firstOrFail();
-    expect($created->roles()->pluck('role_code')->all())->toBe(['buyer']);
+    expect($created->getRoleNames()->all())->toBe(['buyer']);
     Notification::assertSentTo($created, ResetPassword::class);
     $this->get(route('administration.index'))->assertInertia(fn (Assert $page): Assert => $page->component('administration/index')->where('organization.name', 'Buying Organization'));
 });
@@ -432,7 +548,7 @@ test('an approver with a buyer role cannot edit someone elses evaluation', funct
     $this->freezeTime();
     $scenario = procurementScenario();
     $round = assessedRound($scenario, $this);
-    UserRole::factory()->create(['user_id' => $scenario['approver']->id, 'role_code' => 'buyer']);
+    $scenario['approver']->assignRole('buyer');
     $candidate = $round->candidates()->firstOrFail();
 
     $this->actingAs($scenario['approver'])->post(route('evaluations.assess', $scenario['request']), [
@@ -460,7 +576,7 @@ test('email failure is retained for retry without duplicating the in-app receipt
 test('internal visibility checks have a bounded query cost for each role', function (?string $role, string $status, bool $internal, int $queries): void {
     $user = User::factory()->create(['status' => $status])->refresh();
     if ($role !== null) {
-        UserRole::factory()->create(['user_id' => $user->id, 'role_code' => $role]);
+        $user->assignRole($role);
     }
 
     $this->expectsDatabaseQueryCount($queries);
@@ -477,20 +593,20 @@ test('internal visibility checks have a bounded query cost for each role', funct
 
 test('internal visibility rechecks role revocation on the same user instance', function (): void {
     $user = User::factory()->create()->refresh();
-    UserRole::factory()->create(['user_id' => $user->id, 'role_code' => 'buyer']);
+    $user->assignRole('buyer');
     expect(ProcurementAccess::internal($user))->toBeTrue();
 
-    $user->roles()->delete();
+    DB::table('model_has_roles')->where('model_id', $user->id)->delete();
 
     expect(ProcurementAccess::internal($user))->toBeFalse();
 });
 
 test('editor choices preserve creator exclusion and remain hidden from suppliers', function (): void {
     $scenario = procurementScenario();
-    UserRole::factory()->create(['user_id' => $scenario['buyer']->id, 'role_code' => 'approver']);
+    $scenario['buyer']->assignRole('approver');
     $otherBuyer = User::factory()->create()->refresh();
-    UserRole::factory()->create(['user_id' => $otherBuyer->id, 'role_code' => 'buyer']);
-    UserRole::factory()->create(['user_id' => $otherBuyer->id, 'role_code' => 'approver']);
+    $otherBuyer->assignRole('buyer');
+    $otherBuyer->assignRole('approver');
 
     $this->actingAs($otherBuyer)->get(route('procurement.index'))->assertInertia(fn (Assert $page): Assert => $page
         ->where('currencies', fn (Collection $choices): bool => $choices->pluck('code')->contains('USD'))->has('suppliers', 1)
