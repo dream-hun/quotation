@@ -105,14 +105,12 @@ export function RequestEditor({
                     label="Currency"
                     name="currency_code"
                     defaultValue={request?.currency_code ?? currencies[0]?.code}
-                >
-                    <option value="">Select currency</option>
-                    {currencies.map((currency) => (
-                        <option key={currency.code} value={currency.code}>
-                            {currency.code} · {currency.name}
-                        </option>
-                    ))}
-                </SelectField>
+                    placeholder="Select currency"
+                    options={currencies.map((currency) => ({
+                        value: currency.code,
+                        label: currency.code + ' · ' + currency.name,
+                    }))}
+                />
                 <Field
                     label="Deadline (your browser’s local time)"
                     name="deadline_at"
@@ -122,17 +120,15 @@ export function RequestEditor({
                 <SelectField
                     label="Independent approver"
                     name="approver_uuid"
-                    defaultValue={request?.approver_uuid ?? ''}
-                >
-                    <option value="">Select approver</option>
-                    {approvers.map((person) => (
-                        <option key={person.uuid} value={person.uuid}>
-                            {person.name}
-                        </option>
-                    ))}
-                </SelectField>
+                    defaultValue={request?.approver_uuid}
+                    placeholder="Select approver"
+                    options={approvers.map((person) => ({
+                        value: person.uuid,
+                        label: person.name ?? person.uuid,
+                    }))}
+                />
             </div>
-            <div className="grid gap-4">
+            <div className="grid gap-4 border-t pt-4">
                 <div className="flex items-center justify-between">
                     <h3 className="font-semibold">Requested items</h3>
                     <Button
@@ -160,12 +156,13 @@ export function RequestEditor({
                 {items.map((item, index) => (
                     <fieldset
                         key={item.uuid}
+                        aria-label={'Item ' + (index + 1)}
                         className="grid gap-3 rounded-lg border p-4"
                     >
-                        <legend className="px-1 text-sm">
-                            Item {index + 1}
-                        </legend>
-                        <div className="flex justify-end">
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">
+                                Item {index + 1}
+                            </span>
                             <Button
                                 type="button"
                                 size="icon"
@@ -211,7 +208,7 @@ export function RequestEditor({
                     </fieldset>
                 ))}
             </div>
-            <h3 className="font-semibold">Evaluation criteria</h3>
+            <h3 className="border-t pt-4 font-semibold">Evaluation criteria</h3>
             {criteria.map((criterion, index) => (
                 <div
                     key={criterion.uuid}
@@ -223,7 +220,11 @@ export function RequestEditor({
                         value={criterion.category}
                     />
                     <Field
-                        label={criterion.category + ' criterion'}
+                        label={
+                            criterion.category[0].toUpperCase() +
+                            criterion.category.slice(1) +
+                            ' criterion'
+                        }
                         name={'criteria[' + index + '][name]'}
                         defaultValue={criterion.name}
                         required
@@ -237,10 +238,11 @@ export function RequestEditor({
                         label="Mandatory condition"
                         name={'criteria[' + index + '][mandatory]'}
                         defaultValue={criterion.mandatory ? '1' : '0'}
-                    >
-                        <option value="1">Mandatory — must pass</option>
-                        <option value="0">Comparison finding</option>
-                    </SelectField>
+                        options={[
+                            { value: '1', label: 'Mandatory — must pass' },
+                            { value: '0', label: 'Comparison finding' },
+                        ]}
+                    />
                 </div>
             ))}
             <Button

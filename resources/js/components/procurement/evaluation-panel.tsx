@@ -1,3 +1,4 @@
+import { Scale, TriangleAlert } from 'lucide-react';
 import {
     assess,
     decide,
@@ -5,18 +6,34 @@ import {
 } from '@/actions/App/Http/Controllers/EvaluationController';
 import {
     ActionDialog,
+    EmptyState,
     Section,
     SelectField,
     Status,
     TextField,
 } from '@/components/procurement/shared';
 import { FrozenEvidence } from '@/components/procurement/frozen-evidence';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 import type {
     Candidate,
     Procurement,
     Revision,
     Round,
 } from '@/types/procurement';
+
+const findingOptions = [
+    { value: 'pending', label: 'Pending' },
+    { value: 'pass', label: 'Pass' },
+    { value: 'fail', label: 'Fail' },
+];
 
 function Assessment({
     request,
@@ -68,11 +85,8 @@ function Assessment({
                             label="Specification finding"
                             name={'lines[' + index + '][result]'}
                             defaultValue={finding?.result ?? 'pending'}
-                        >
-                            <option value="pending">Pending</option>
-                            <option value="pass">Pass</option>
-                            <option value="fail">Fail</option>
-                        </SelectField>
+                            options={findingOptions}
+                        />
                         <TextField
                             label="Evidence"
                             name={'lines[' + index + '][finding]'}
@@ -107,11 +121,8 @@ function Assessment({
                             label="Criterion finding"
                             name={'criteria[' + index + '][result]'}
                             defaultValue={finding?.result ?? 'pending'}
-                        >
-                            <option value="pending">Pending</option>
-                            <option value="pass">Pass</option>
-                            <option value="fail">Fail</option>
-                        </SelectField>
+                            options={findingOptions}
+                        />
                         <TextField
                             label="Finding and rationale"
                             name={'criteria[' + index + '][finding]'}
@@ -148,32 +159,37 @@ export function EvaluationPanel({
             description="Compare total cost, delivery, payment terms and verified compliance. A low price does not authorize an award."
         >
             {revisions.length === 0 ? (
-                <p className="text-muted-foreground text-sm">
-                    No submitted quotations. Record the outcome and cancel or
-                    clone the request.
-                </p>
+                <EmptyState
+                    icon={Scale}
+                    title="No submitted quotations"
+                    description="Record the outcome and cancel or clone the request."
+                />
             ) : (
-                <div className="overflow-x-auto">
-                    <table className="w-full border-collapse text-left text-sm">
-                        <thead>
-                            <tr>
-                                <th className="bg-card sticky left-0 z-10 min-w-44 border-b p-3">
+                <div className="rounded-lg border">
+                    <Table>
+                        <TableHeader>
+                            <TableRow className="hover:bg-transparent">
+                                <TableHead
+                                    scope="col"
+                                    className="bg-card sticky left-0 z-10 h-auto min-w-44 p-3"
+                                >
                                     Comparison dimension
-                                </th>
+                                </TableHead>
                                 {revisions.map((revision) => (
-                                    <th
+                                    <TableHead
                                         key={revision.uuid}
-                                        className="min-w-64 border-b p-3"
+                                        scope="col"
+                                        className="text-foreground h-auto min-w-64 p-3"
                                     >
                                         {revision.supplier_name_snapshot}
-                                        <p className="text-muted-foreground mt-1 font-normal">
+                                        <p className="text-muted-foreground text-xs font-normal">
                                             Revision {revision.revision_number}
                                         </p>
-                                    </th>
+                                    </TableHead>
                                 ))}
-                            </tr>
-                        </thead>
-                        <tbody>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
                             {[
                                 {
                                     name: 'Total payable',
@@ -218,23 +234,35 @@ export function EvaluationPanel({
                                     ),
                                 },
                             ].map((row) => (
-                                <tr key={row.name}>
-                                    <th className="bg-card sticky left-0 border-b p-3 font-medium">
+                                <TableRow
+                                    key={row.name}
+                                    className="hover:bg-transparent"
+                                >
+                                    <th
+                                        scope="row"
+                                        className="bg-card sticky left-0 p-3 text-left align-top font-medium"
+                                    >
                                         {row.name}
                                     </th>
                                     {revisions.map((revision) => (
-                                        <td
+                                        <TableCell
                                             key={revision.uuid}
-                                            className="border-b p-3"
+                                            className="p-3 align-top whitespace-normal"
                                         >
                                             {row.cell(revision)}
-                                        </td>
+                                        </TableCell>
                                     ))}
-                                </tr>
+                                </TableRow>
                             ))}
                             {request.items.map((item) => (
-                                <tr key={item.uuid}>
-                                    <th className="bg-card sticky left-0 border-b p-3 font-medium">
+                                <TableRow
+                                    key={item.uuid}
+                                    className="hover:bg-transparent"
+                                >
+                                    <th
+                                        scope="row"
+                                        className="bg-card sticky left-0 p-3 text-left align-top font-medium"
+                                    >
                                         {item.description}
                                         <p className="text-muted-foreground mt-1 text-xs font-normal">
                                             {item.quantity} {item.unit}
@@ -246,9 +274,9 @@ export function EvaluationPanel({
                                                 entry.item_uuid === item.uuid,
                                         );
                                         return (
-                                            <td
+                                            <TableCell
                                                 key={revision.uuid}
-                                                className="border-b p-3"
+                                                className="p-3 align-top whitespace-normal"
                                             >
                                                 <strong>
                                                     {line?.line_total}
@@ -265,13 +293,16 @@ export function EvaluationPanel({
                                                         line?.supplier_compliance_response
                                                     }
                                                 </p>
-                                            </td>
+                                            </TableCell>
                                         );
                                     })}
-                                </tr>
+                                </TableRow>
                             ))}
-                            <tr>
-                                <th className="bg-card sticky left-0 p-3 font-medium">
+                            <TableRow className="hover:bg-transparent">
+                                <th
+                                    scope="row"
+                                    className="bg-card sticky left-0 p-3 text-left align-top font-medium"
+                                >
                                     Evaluator disposition
                                 </th>
                                 {revisions.map((revision) => {
@@ -281,7 +312,10 @@ export function EvaluationPanel({
                                             revision.uuid,
                                     );
                                     return (
-                                        <td key={revision.uuid} className="p-3">
+                                        <TableCell
+                                            key={revision.uuid}
+                                            className="p-3 align-top whitespace-normal"
+                                        >
                                             <div className="grid gap-3">
                                                 <Status
                                                     value={
@@ -307,26 +341,30 @@ export function EvaluationPanel({
                                                         />
                                                     )}
                                             </div>
-                                        </td>
+                                        </TableCell>
                                     );
                                 })}
-                            </tr>
-                        </tbody>
-                    </table>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
                 </div>
             )}
             {active?.canFreeze && (
-                <div className="mt-5 border-t pt-5">
+                <div className="mt-4 grid gap-3 border-t pt-4">
                     {active.candidates.filter(
                         (candidate) => candidate.disposition === 'eligible',
                     ).length === 1 && (
-                        <p className="mb-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                            Only one eligible quotation. A participation
-                            justification is required.
-                        </p>
+                        <Alert className="border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                            <TriangleAlert />
+                            <AlertDescription className="text-current">
+                                Only one eligible quotation. A participation
+                                justification is required.
+                            </AlertDescription>
+                        </Alert>
                     )}
                     <ActionDialog
                         title="Recommend for approval"
+                        triggerVariant="default"
                         action={freeze(request.uuid)}
                         submit="Freeze and request approval"
                         description="This freezes the comparison, findings and recommendation. Only the assigned independent approver can decide the award."
@@ -340,28 +378,23 @@ export function EvaluationPanel({
                             label="Recommended quotation"
                             name="candidate_uuid"
                             required
-                        >
-                            <option value="">Select eligible quotation</option>
-                            {active.candidates
+                            placeholder="Select eligible quotation"
+                            options={active.candidates
                                 .filter(
                                     (candidate) =>
                                         candidate.disposition === 'eligible',
                                 )
-                                .map((candidate) => (
-                                    <option
-                                        key={candidate.uuid}
-                                        value={candidate.uuid}
-                                    >
-                                        {
-                                            revisions.find(
-                                                (revision) =>
-                                                    revision.uuid ===
-                                                    candidate.revision_uuid,
-                                            )?.supplier_name_snapshot
-                                        }
-                                    </option>
-                                ))}
-                        </SelectField>
+                                .map((candidate) => ({
+                                    value: candidate.uuid,
+                                    label:
+                                        revisions.find(
+                                            (revision) =>
+                                                revision.uuid ===
+                                                candidate.revision_uuid,
+                                        )?.supplier_name_snapshot ??
+                                        candidate.uuid,
+                                }))}
+                        />
                         <TextField
                             label="Selection rationale and tradeoffs"
                             name="reason"
@@ -377,9 +410,9 @@ export function EvaluationPanel({
             {rounds.map((round) => (
                 <div
                     key={round.uuid}
-                    className="mt-6 grid gap-3 rounded-lg border p-4"
+                    className="mt-4 grid gap-3 rounded-lg border p-4"
                 >
-                    <div className="flex justify-between">
+                    <div className="flex items-center justify-between gap-3">
                         <h3 className="font-medium">
                             Evaluation round {round.round_number}
                         </h3>
@@ -394,10 +427,13 @@ export function EvaluationPanel({
                         </p>
                     )}
                     {round.approval && (
-                        <p className="text-sm">
-                            Decision: <Status value={round.approval.status} />{' '}
+                        <div className="flex flex-wrap items-center gap-2 text-sm">
+                            <span className="text-muted-foreground">
+                                Decision:
+                            </span>
+                            <Status value={round.approval.status} />
                             {round.approval.decision_reason}
-                        </p>
+                        </div>
                     )}
                     {round.frozen_snapshot && <FrozenEvidence round={round} />}
                     {round.canDecide &&
@@ -413,6 +449,18 @@ export function EvaluationPanel({
                                             }
                                             action={decide(request.uuid)}
                                             submit={'Confirm ' + decision}
+                                            triggerVariant={
+                                                decision === 'approve'
+                                                    ? 'default'
+                                                    : decision === 'reject'
+                                                      ? 'destructive'
+                                                      : 'outline'
+                                            }
+                                            submitVariant={
+                                                decision === 'reject'
+                                                    ? 'destructive'
+                                                    : 'default'
+                                            }
                                             description={
                                                 decision === 'approve'
                                                     ? 'Approve the frozen recommendation and record one award. This decision is final.'

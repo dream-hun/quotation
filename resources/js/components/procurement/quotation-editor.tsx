@@ -5,7 +5,6 @@ import {
 import {
     ActionDialog,
     Field,
-    Section,
     TextField,
     timestamp,
 } from '@/components/procurement/shared';
@@ -24,6 +23,7 @@ export function QuotationEditor({
         <div className="flex flex-wrap gap-2">
             <ActionDialog
                 title={draft ? 'Edit quotation draft' : 'Prepare quotation'}
+                triggerVariant={draft ? 'outline' : 'default'}
                 action={save(request.uuid)}
                 submit="Save draft"
                 description="Amounts are entered as decimals in the request currency. Saved drafts stay private. Saving a draft does not submit it."
@@ -87,17 +87,21 @@ export function QuotationEditor({
                     );
                     const prefix = 'lines[' + index + ']';
                     return (
-                        <Section
+                        <fieldset
                             key={item.uuid}
-                            title={item.description}
-                            description={
-                                item.quantity +
-                                ' ' +
-                                item.unit +
-                                ' · ' +
-                                item.specification
-                            }
+                            aria-label={item.description}
+                            className="grid gap-4 rounded-lg border p-4"
                         >
+                            <div className="grid gap-1">
+                                <p className="font-medium">
+                                    {item.description}
+                                </p>
+                                <p className="text-muted-foreground text-sm">
+                                    {item.quantity} {item.unit}
+                                    {item.specification &&
+                                        ' · ' + item.specification}
+                                </p>
+                            </div>
                             <div className="grid gap-4">
                                 <input
                                     type="hidden"
@@ -149,13 +153,14 @@ export function QuotationEditor({
                                     defaultValue={line?.zero_price_reason ?? ''}
                                 />
                             </div>
-                        </Section>
+                        </fieldset>
                     );
                 })}
             </ActionDialog>
             {draft && (
                 <ActionDialog
                     title="Submit saved quotation"
+                    triggerVariant="default"
                     action={submit(request.uuid)}
                     submit="Submit quotation"
                     description={
@@ -183,7 +188,7 @@ export function QuotationEditor({
                         name="submission_key"
                         value={draft.uuid}
                     />
-                    <p className="text-sm">
+                    <p className="text-muted-foreground text-sm">
                         Confirm that every line is priced and your saved
                         commercial terms and supporting documents are complete.
                         A receipt will appear after the transaction succeeds.

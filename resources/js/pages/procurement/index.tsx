@@ -1,32 +1,32 @@
 import { Head, Link, router } from '@inertiajs/react';
-import {
-    ArrowUpRight,
-    Clock3,
-    FileText,
-    MoreHorizontal,
-    ShieldCheck,
-} from 'lucide-react';
+import { Bell, Clock3, FileText, ShieldCheck } from 'lucide-react';
 import {
     index,
     show,
 } from '@/actions/App/Http/Controllers/ProcurementController';
 import { RequestEditor } from '@/components/procurement/request-editor';
 import {
+    EmptyState,
     Field,
     Flash,
+    PageContainer,
+    PageHeader,
     Pagination,
     Section,
     SelectField,
+    StatCard,
     Status,
     timestamp,
 } from '@/components/procurement/shared';
 import { Button } from '@/components/ui/button';
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 import type {
     Choice,
     Currency,
@@ -51,6 +51,17 @@ type Props = {
     }[];
 };
 
+const statuses = [
+    'draft',
+    'open',
+    'closed',
+    'evaluating',
+    'pending_approval',
+    'awarded',
+    'rejected',
+    'cancelled',
+];
+
 export default function Index({
     requests,
     counts,
@@ -62,66 +73,43 @@ export default function Index({
     approvers,
     notifications,
 }: Props) {
+    const hasFilters = Object.values(filters).some(Boolean);
     return (
         <>
             <Head title="Procurement" />
-            <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 md:p-8">
-                <div className="flex flex-wrap items-end justify-between gap-4">
-                    <div>
-                        <p className="mb-2 text-xs font-semibold tracking-widest text-emerald-700 uppercase dark:text-emerald-400">
-                            {organization?.name ?? 'Quotation workspace'}
-                        </p>
-                        <h1 className="text-3xl font-semibold tracking-tight">
-                            {isSupplier
-                                ? 'Your invitations'
-                                : 'Procurement overview'}
-                        </h1>
-                        <p className="text-muted-foreground mt-2">
-                            From a clear requirement to a decision you can
-                            explain.
-                        </p>
-                    </div>
-                    {canCreate && (
-                        <RequestEditor
-                            currencies={currencies}
-                            approvers={approvers}
-                        />
-                    )}
-                </div>
+            <PageContainer>
+                <PageHeader
+                    eyebrow={organization?.name ?? 'Quotation workspace'}
+                    title={
+                        isSupplier ? 'Your invitations' : 'Procurement overview'
+                    }
+                    description="From a clear requirement to a decision you can explain."
+                    actions={
+                        canCreate && (
+                            <RequestEditor
+                                currencies={currencies}
+                                approvers={approvers}
+                            />
+                        )
+                    }
+                />
                 <Flash />
-                <div className="grid gap-4 sm:grid-cols-3">
-                    {[
-                        {
-                            label: 'Open for quotations',
-                            count: counts.open ?? 0,
-                            icon: Clock3,
-                        },
-                        {
-                            label: 'Awaiting approval',
-                            count: counts.pending_approval ?? 0,
-                            icon: FileText,
-                        },
-                        {
-                            label: 'Awarded requests',
-                            count: counts.awarded ?? 0,
-                            icon: ShieldCheck,
-                        },
-                    ].map(({ label, count, icon: Icon }) => (
-                        <div
-                            key={label}
-                            className="bg-card flex items-center justify-between rounded-xl border p-5"
-                        >
-                            <div>
-                                <p className="text-muted-foreground text-sm">
-                                    {label}
-                                </p>
-                                <p className="mt-2 text-3xl font-semibold">
-                                    {count}
-                                </p>
-                            </div>
-                            <Icon className="size-6 text-emerald-600" />
-                        </div>
-                    ))}
+                <div className="grid auto-rows-min gap-4 md:grid-cols-3">
+                    <StatCard
+                        label="Open for quotations"
+                        value={counts.open ?? 0}
+                        icon={Clock3}
+                    />
+                    <StatCard
+                        label="Awaiting approval"
+                        value={counts.pending_approval ?? 0}
+                        icon={FileText}
+                    />
+                    <StatCard
+                        label="Awarded requests"
+                        value={counts.awarded ?? 0}
+                        icon={ShieldCheck}
+                    />
                 </div>
                 <Section
                     title={
@@ -130,7 +118,7 @@ export default function Index({
                     description="Search and follow each procurement through its lifecycle."
                 >
                     <form
-                        className="mb-6 grid items-end gap-3 sm:grid-cols-3 lg:grid-cols-6"
+                        className="mb-4 grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_auto]"
                         onSubmit={(event) => {
                             event.preventDefault();
                             const data = Object.fromEntries(
@@ -150,29 +138,23 @@ export default function Index({
                         <SelectField
                             label="Status"
                             name="status"
-                            defaultValue={filters.status ?? ''}
-                        >
-                            <option value="">All statuses</option>
-                            {[
-                                'draft',
-                                'open',
-                                'closed',
-                                'evaluating',
-                                'pending_approval',
-                                'awarded',
-                                'rejected',
-                                'cancelled',
-                            ].map((status) => (
-                                <option key={status} value={status}>
-                                    {status.replaceAll('_', ' ')}
-                                </option>
-                            ))}
-                        </SelectField>
+                            defaultValue={filters.status}
+                            options={[
+                                { value: '', label: 'All statuses' },
+                                ...statuses.map((status) => ({
+                                    value: status,
+                                    label:
+                                        status[0].toUpperCase() +
+                                        status.slice(1).replaceAll('_', ' '),
+                                })),
+                            ]}
+                        />
                         {!isSupplier && (
                             <Field
                                 label="Supplier"
                                 name="supplier"
                                 defaultValue={filters.supplier}
+                                placeholder="Supplier name"
                             />
                         )}
                         <Field
@@ -187,121 +169,100 @@ export default function Index({
                             type="date"
                             defaultValue={filters.to}
                         />
-                        <Button type="submit">Apply filters</Button>
+                        <div className="flex gap-2">
+                            <Button type="submit">Apply</Button>
+                            {hasFilters && (
+                                <Button variant="ghost" asChild>
+                                    <Link href={index()}>Clear</Link>
+                                </Button>
+                            )}
+                        </div>
                     </form>
                     {requests.data.length === 0 ? (
-                        <div className="rounded-lg border border-dashed py-14 text-center">
-                            <FileText className="text-muted-foreground mx-auto mb-3 size-8" />
-                            <h3 className="font-medium">No requests yet</h3>
-                            <p className="text-muted-foreground mt-2 text-sm">
-                                {canCreate
-                                    ? 'Create your first request to invite suppliers.'
-                                    : 'Your administrator or buyer will assign access and invitations here.'}
-                            </p>
-                        </div>
+                        <EmptyState
+                            icon={FileText}
+                            title={
+                                hasFilters
+                                    ? 'No requests match these filters'
+                                    : 'No requests yet'
+                            }
+                            description={
+                                hasFilters
+                                    ? 'Try a different search or clear the filters.'
+                                    : canCreate
+                                      ? 'Create your first request to invite suppliers.'
+                                      : 'Your administrator or buyer will assign access and invitations here.'
+                            }
+                        />
                     ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
-                                <thead className="text-muted-foreground border-b text-xs">
-                                    <tr>
-                                        <th className="pb-3">Request</th>
-                                        <th className="pb-3">Status</th>
-                                        <th className="pb-3">Deadline</th>
-                                        <th className="pb-3">
-                                            <span className="sr-only">
-                                                Actions
-                                            </span>
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {requests.data.map((request) => (
-                                        <tr
-                                            key={request.uuid}
-                                            className="border-b last:border-0"
-                                        >
-                                            <td className="py-4 pr-4">
-                                                <Link
-                                                    href={show(request.uuid)}
-                                                    className="font-medium hover:underline"
-                                                >
-                                                    {request.title}
-                                                </Link>
-                                                <p className="text-muted-foreground mt-1 text-xs">
-                                                    {request.request_number}
-                                                </p>
-                                            </td>
-                                            <td className="pr-4">
-                                                <Status
-                                                    value={request.status}
-                                                />
-                                            </td>
-                                            <td className="pr-4 whitespace-nowrap">
-                                                {timestamp(
-                                                    request.deadline_at,
-                                                    request.timezone,
-                                                )}
-                                                <p className="text-muted-foreground text-xs">
-                                                    {request.timezone}
-                                                </p>
-                                            </td>
-                                            <td>
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger
-                                                        asChild
-                                                    >
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            aria-label={
-                                                                'Actions for ' +
-                                                                request.title
-                                                            }
-                                                        >
-                                                            <MoreHorizontal className="size-4" />
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end">
-                                                        <DropdownMenuItem
-                                                            asChild
-                                                        >
-                                                            <Link
-                                                                href={show(
-                                                                    request.uuid,
-                                                                )}
-                                                            >
-                                                                Open workspace
-                                                                <ArrowUpRight className="size-4" />
-                                                            </Link>
-                                                        </DropdownMenuItem>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Request</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead>Deadline</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {requests.data.map((request) => (
+                                    <TableRow
+                                        key={request.uuid}
+                                        className="cursor-pointer"
+                                        onClick={() =>
+                                            router.visit(show(request.uuid))
+                                        }
+                                    >
+                                        <TableCell className="py-3">
+                                            <Link
+                                                href={show(request.uuid)}
+                                                className="font-medium hover:underline"
+                                                onClick={(event) =>
+                                                    event.stopPropagation()
+                                                }
+                                            >
+                                                {request.title}
+                                            </Link>
+                                            <p className="text-muted-foreground text-xs">
+                                                {request.request_number}
+                                            </p>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Status value={request.status} />
+                                        </TableCell>
+                                        <TableCell>
+                                            {timestamp(
+                                                request.deadline_at,
+                                                request.timezone,
+                                            )}
+                                            <p className="text-muted-foreground text-xs">
+                                                {request.timezone}
+                                            </p>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
                     )}
-                    <div className="mt-5">
+                    <div className="mt-4 border-t pt-4">
                         <Pagination page={requests} />
                     </div>
                 </Section>
                 {notifications.length > 0 && (
                     <Section title="Recent updates">
-                        <div className="grid gap-3">
+                        <div className="-mx-2 grid gap-1">
                             {notifications.map((notice) => (
                                 <Link
                                     key={notice.uuid}
                                     href={show(notice.request_uuid)}
-                                    className="hover:bg-muted flex items-center justify-between gap-3 rounded-md p-2 text-sm"
+                                    className="hover:bg-muted flex items-center justify-between gap-3 rounded-md px-2 py-2 text-sm"
                                 >
-                                    <span className="capitalize">
+                                    <span className="flex items-center gap-3 capitalize">
+                                        <Bell className="text-muted-foreground size-4" />
                                         {notice.event_type
                                             .replaceAll('.', ' ')
                                             .replaceAll('_', ' ')}
                                     </span>
-                                    <span className="text-muted-foreground text-xs">
+                                    <span className="text-muted-foreground text-xs whitespace-nowrap">
                                         {timestamp(notice.created_at)}
                                     </span>
                                 </Link>
@@ -309,7 +270,7 @@ export default function Index({
                         </div>
                     </Section>
                 )}
-            </div>
+            </PageContainer>
         </>
     );
 }

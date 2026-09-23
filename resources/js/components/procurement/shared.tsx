@@ -1,93 +1,309 @@
 import { Form, Link, usePage } from '@inertiajs/react';
+import type { VariantProps } from 'class-variance-authority';
+import { CircleAlert, CircleCheck } from 'lucide-react';
 import { useId, useState } from 'react';
-import type { ComponentProps, ReactNode } from 'react';
+import type { ComponentProps, ComponentType, ReactNode } from 'react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import type { buttonVariants } from '@/components/ui/button';
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
     DialogContent,
     DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
 import type { PageData } from '@/types/procurement';
 
+const statusTones = {
+    success:
+        'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300',
+    danger: 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300',
+    warning:
+        'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300',
+    info: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-300',
+    neutral: 'bg-muted text-muted-foreground border-transparent',
+};
+
+const statusToneMap: Record<string, keyof typeof statusTones> = {
+    awarded: 'success',
+    eligible: 'success',
+    submitted: 'success',
+    clean: 'success',
+    approved: 'success',
+    responded: 'success',
+    active: 'success',
+    resolved: 'success',
+    pass: 'success',
+    excluded: 'danger',
+    rejected: 'danger',
+    cancelled: 'danger',
+    withdrawn: 'danger',
+    failed: 'danger',
+    declined: 'danger',
+    infected: 'danger',
+    fail: 'danger',
+    disabled: 'danger',
+    pending: 'warning',
+    pending_approval: 'warning',
+    evaluating: 'warning',
+    returned: 'warning',
+    open: 'info',
+    invited: 'info',
+    all_invited: 'info',
+};
+
 export function Status({ value }: { value: string }) {
-    const color = [
-        'awarded',
-        'eligible',
-        'submitted',
-        'clean',
-        'approved',
-        'responded',
-    ].includes(value)
-        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-        : ['excluded', 'rejected', 'cancelled', 'withdrawn', 'failed'].includes(
-                value,
-            )
-          ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
-          : 'bg-muted text-muted-foreground';
     return (
-        <span
-            className={
-                'inline-flex rounded-full px-2.5 py-1 text-xs font-medium capitalize ' +
-                color
-            }
+        <Badge
+            variant="outline"
+            className={cn(
+                'rounded-full capitalize',
+                statusTones[statusToneMap[value] ?? 'neutral'],
+            )}
         >
             {value.replaceAll('_', ' ')}
-        </span>
+        </Badge>
+    );
+}
+
+export function PageContainer({ children }: { children: ReactNode }) {
+    return (
+        <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
+            {children}
+        </div>
+    );
+}
+
+export function PageHeader({
+    eyebrow,
+    title,
+    description,
+    actions,
+}: {
+    eyebrow?: ReactNode;
+    title: string;
+    description?: ReactNode;
+    actions?: ReactNode;
+}) {
+    return (
+        <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="grid gap-1">
+                {eyebrow && (
+                    <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs font-medium tracking-wide uppercase">
+                        {eyebrow}
+                    </div>
+                )}
+                <h1 className="text-2xl font-semibold tracking-tight">
+                    {title}
+                </h1>
+                {description && (
+                    <div className="text-muted-foreground text-sm">
+                        {description}
+                    </div>
+                )}
+            </div>
+            {actions && (
+                <div className="flex flex-wrap items-center gap-2">
+                    {actions}
+                </div>
+            )}
+        </div>
+    );
+}
+
+export function StatCard({
+    label,
+    value,
+    icon: Icon,
+}: {
+    label: string;
+    value: ReactNode;
+    icon: ComponentType<{ className?: string }>;
+}) {
+    return (
+        <div className="bg-card border-sidebar-border/70 dark:border-sidebar-border flex items-center justify-between rounded-xl border p-4">
+            <div className="grid gap-1">
+                <p className="text-muted-foreground text-sm">{label}</p>
+                <p className="text-2xl font-semibold tabular-nums">{value}</p>
+            </div>
+            <div className="bg-muted flex size-10 items-center justify-center rounded-lg">
+                <Icon className="text-muted-foreground size-5" />
+            </div>
+        </div>
+    );
+}
+
+export function EmptyState({
+    icon: Icon,
+    title,
+    description,
+}: {
+    icon?: ComponentType<{ className?: string }>;
+    title: string;
+    description?: string;
+}) {
+    return (
+        <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed px-4 py-10 text-center">
+            {Icon && <Icon className="text-muted-foreground size-8" />}
+            <p className="text-sm font-medium">{title}</p>
+            {description && (
+                <p className="text-muted-foreground max-w-md text-sm">
+                    {description}
+                </p>
+            )}
+        </div>
     );
 }
 
 export function Field({
     label,
     children,
+    className,
     ...props
 }: ComponentProps<typeof Input> & { label: string; children?: ReactNode }) {
     const id = useId();
     return (
-        <div className="grid gap-2">
+        <div className={cn('grid gap-2', className)}>
             <Label htmlFor={id}>{label}</Label>
             {children ?? <Input id={id} {...props} />}
         </div>
     );
 }
 
+export type SelectOption = { value: string; label: string };
+
+const emptyOptionValue = '__empty__';
+
+/**
+ * A shadcn select that submits its value through a hidden input, so it works
+ * inside plain forms and Inertia forms. Options with an empty value act as a
+ * selectable "none" choice (Radix does not allow empty item values).
+ */
 export function SelectField({
     label,
-    children,
-    ...props
-}: ComponentProps<'select'> & { label: string }) {
+    name,
+    options,
+    defaultValue = '',
+    placeholder = 'Select an option',
+    required,
+    disabled,
+    className,
+}: {
+    label: string;
+    name: string;
+    options: SelectOption[];
+    defaultValue?: string | null;
+    placeholder?: string;
+    required?: boolean;
+    disabled?: boolean;
+    className?: string;
+}) {
     const id = useId();
+    const [value, setValue] = useState(defaultValue ?? '');
+    const hasEmptyOption = options.some((option) => option.value === '');
     return (
-        <div className="grid gap-2">
+        <div className={cn('grid gap-2', className)}>
             <Label htmlFor={id}>{label}</Label>
-            <select
-                id={id}
-                className="bg-background h-10 w-full rounded-md border px-3 text-sm"
-                {...props}
+            <input type="hidden" name={name} value={value} />
+            <Select
+                value={
+                    value === '' && hasEmptyOption ? emptyOptionValue : value
+                }
+                onValueChange={(next) =>
+                    setValue(next === emptyOptionValue ? '' : next)
+                }
+                required={required}
+                disabled={disabled}
             >
-                {children}
-            </select>
+                <SelectTrigger id={id} className="w-full">
+                    <SelectValue placeholder={placeholder} />
+                </SelectTrigger>
+                <SelectContent>
+                    {options.map((option) => (
+                        <SelectItem
+                            key={option.value || emptyOptionValue}
+                            value={option.value || emptyOptionValue}
+                        >
+                            {option.label}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
         </div>
     );
 }
 
 export function TextField({
     label,
+    className,
     ...props
-}: ComponentProps<'textarea'> & { label: string }) {
+}: ComponentProps<typeof Textarea> & { label: string }) {
     const id = useId();
     return (
         <div className="grid gap-2">
             <Label htmlFor={id}>{label}</Label>
-            <textarea
+            <Textarea
                 id={id}
-                className="bg-background focus-visible:ring-ring min-h-24 w-full rounded-md border p-3 text-sm focus-visible:ring-2"
+                className={cn('min-h-24', className)}
                 {...props}
             />
+        </div>
+    );
+}
+
+export function CheckboxField({
+    label,
+    description,
+    bordered = false,
+    ...props
+}: ComponentProps<typeof Checkbox> & {
+    label: ReactNode;
+    description?: ReactNode;
+    bordered?: boolean;
+}) {
+    const id = useId();
+    return (
+        <div
+            className={cn(
+                'flex items-start gap-3',
+                bordered &&
+                    'has-[[data-state=checked]]:bg-muted/50 rounded-lg border p-3',
+            )}
+        >
+            <Checkbox id={id} {...props} />
+            <div className="grid gap-1">
+                <Label htmlFor={id} className="font-normal">
+                    {label}
+                </Label>
+                {description && (
+                    <p className="text-muted-foreground text-xs">
+                        {description}
+                    </p>
+                )}
+            </div>
         </div>
     );
 }
@@ -96,26 +312,30 @@ export function ActionDialog({
     title,
     description,
     trigger,
+    triggerVariant = 'outline',
     action,
     children,
     submit = 'Save',
+    submitVariant = 'default',
     transform,
 }: {
     title: string;
     description?: string;
     trigger?: ReactNode;
+    triggerVariant?: VariantProps<typeof buttonVariants>['variant'];
     action: { url: string; method: 'post' | 'put' };
     children: ReactNode;
     submit?: string;
+    submitVariant?: VariantProps<typeof buttonVariants>['variant'];
     transform?: ComponentProps<typeof Form>['transform'];
 }) {
     const [open, setOpen] = useState(false);
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                {trigger ?? <Button variant="outline">{title}</Button>}
+                {trigger ?? <Button variant={triggerVariant}>{title}</Button>}
             </DialogTrigger>
-            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>{title}</DialogTitle>
                     <DialogDescription>
@@ -128,28 +348,30 @@ export function ActionDialog({
                     method={action.method}
                     transform={transform}
                     onSuccess={() => setOpen(false)}
-                    className="grid gap-5"
+                    className="grid gap-4"
                 >
                     {({ errors, processing }) => (
                         <>
                             {children}
                             {Object.keys(errors).length > 0 && (
-                                <div
-                                    role="alert"
-                                    className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-3 text-sm"
-                                >
-                                    <ul className="list-inside list-disc">
-                                        {Object.entries(errors).map(
-                                            ([key, error]) => (
-                                                <li key={key}>
-                                                    {key}: {String(error)}
-                                                </li>
-                                            ),
-                                        )}
-                                    </ul>
-                                </div>
+                                <Alert variant="destructive">
+                                    <CircleAlert />
+                                    <AlertDescription>
+                                        <ul className="list-inside list-disc">
+                                            {[
+                                                ...new Set(
+                                                    Object.values(errors).map(
+                                                        String,
+                                                    ),
+                                                ),
+                                            ].map((error) => (
+                                                <li key={error}>{error}</li>
+                                            ))}
+                                        </ul>
+                                    </AlertDescription>
+                                </Alert>
                             )}
-                            <div className="flex justify-end gap-2 border-t pt-4">
+                            <DialogFooter className="border-t pt-4">
                                 <Button
                                     type="button"
                                     variant="ghost"
@@ -157,10 +379,14 @@ export function ActionDialog({
                                 >
                                     Cancel
                                 </Button>
-                                <Button type="submit" disabled={processing}>
+                                <Button
+                                    type="submit"
+                                    variant={submitVariant}
+                                    disabled={processing}
+                                >
                                     {processing ? 'Saving…' : submit}
                                 </Button>
-                            </div>
+                            </DialogFooter>
                         </>
                     )}
                 </Form>
@@ -172,32 +398,47 @@ export function ActionDialog({
 export function Flash() {
     const { flash } = usePage<{ flash?: { success?: string } }>().props;
     return flash?.success ? (
-        <div
+        <Alert
             role="status"
-            className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
+            className="border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200"
         >
-            {flash.success}
-        </div>
+            <CircleCheck />
+            <AlertDescription className="text-current">
+                {flash.success}
+            </AlertDescription>
+        </Alert>
     ) : null;
 }
 
 export function Pagination<T>({ page }: { page: PageData<T> }) {
     return (
-        <div className="text-muted-foreground flex items-center justify-between gap-4 text-sm">
+        <div className="text-muted-foreground flex flex-wrap items-center justify-between gap-4 text-sm">
             <span>
                 {page.total} records · Page {page.current_page} of{' '}
                 {page.last_page}
             </span>
-            <div className="flex gap-3">
-                {page.prev_page_url && (
-                    <Link href={page.prev_page_url} preserveScroll>
+            <div className="flex gap-2">
+                {page.prev_page_url ? (
+                    <Button variant="outline" size="sm" asChild>
+                        <Link href={page.prev_page_url} preserveScroll>
+                            Previous
+                        </Link>
+                    </Button>
+                ) : (
+                    <Button variant="outline" size="sm" disabled>
                         Previous
-                    </Link>
+                    </Button>
                 )}
-                {page.next_page_url && (
-                    <Link href={page.next_page_url} preserveScroll>
+                {page.next_page_url ? (
+                    <Button variant="outline" size="sm" asChild>
+                        <Link href={page.next_page_url} preserveScroll>
+                            Next
+                        </Link>
+                    </Button>
+                ) : (
+                    <Button variant="outline" size="sm" disabled>
                         Next
-                    </Link>
+                    </Button>
                 )}
             </div>
         </div>
@@ -209,27 +450,36 @@ export function Section({
     description,
     children,
     action,
+    className,
 }: {
     title: string;
     description?: string;
     children: ReactNode;
     action?: ReactNode;
+    className?: string;
 }) {
     return (
-        <section className="bg-card overflow-hidden rounded-xl border">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
-                <div>
-                    <h2 className="font-semibold">{title}</h2>
+        <Card
+            className={cn(
+                'border-sidebar-border/70 dark:border-sidebar-border gap-0 overflow-hidden py-0 shadow-none',
+                className,
+            )}
+        >
+            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
+                <div className="grid gap-1">
+                    <CardTitle className="text-base">{title}</CardTitle>
                     {description && (
-                        <p className="text-muted-foreground mt-1 text-sm">
-                            {description}
-                        </p>
+                        <CardDescription>{description}</CardDescription>
                     )}
                 </div>
-                {action}
-            </div>
-            <div className="p-5">{children}</div>
-        </section>
+                {action && (
+                    <div className="flex flex-wrap items-center gap-2">
+                        {action}
+                    </div>
+                )}
+            </CardHeader>
+            <CardContent className="p-4">{children}</CardContent>
+        </Card>
     );
 }
 
