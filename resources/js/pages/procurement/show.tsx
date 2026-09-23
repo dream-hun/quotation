@@ -1,4 +1,4 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 import { Ban, FileDown, FileText, LockKeyhole } from 'lucide-react';
 import { store as clarify } from '@/actions/App/Http/Controllers/ClarificationController';
 import { start } from '@/actions/App/Http/Controllers/EvaluationController';
@@ -927,11 +927,11 @@ export default function Show({
                                                         </dt>
                                                         <dd className="text-foreground">
                                                             {typeof value ===
-                                                            'object'
-                                                                ? JSON.stringify(
+                                                            'string'
+                                                                ? value
+                                                                : JSON.stringify(
                                                                       value,
-                                                                  )
-                                                                : String(value)}
+                                                                  )}
                                                         </dd>
                                                     </div>
                                                 ))}
