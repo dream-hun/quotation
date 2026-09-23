@@ -19,6 +19,7 @@ use Illuminate\Support\Carbon;
 use Laravel\Fortify\Contracts\PasskeyUser;
 use Laravel\Fortify\PasskeyAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
+use Spatie\Permission\Traits\HasRoles;
 
 /**
  * @property int $id
@@ -26,7 +27,6 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string $normalized_email
  * @property string $status
  * @property int $lock_version
- * @property-read Collection<int, UserRole> $roles
  * @property-read SupplierMember|null $supplierMembership
  * @property-read Collection<int, PurchaseRequest> $purchaseRequests
  * @property-read Collection<int, ApprovalCase> $approvalCases
@@ -48,16 +48,11 @@ final class User extends Authenticatable implements PasskeyUser
     /** @use HasFactory<UserFactory> */
     use HasFactory;
 
+    use HasRoles;
     use HasUuidRouteKey;
     use Notifiable;
     use PasskeyAuthenticatable;
     use TwoFactorAuthenticatable;
-
-    /** @return HasMany<UserRole, $this> */
-    public function roles(): HasMany
-    {
-        return $this->hasMany(UserRole::class);
-    }
 
     /** @return HasOne<SupplierMember, $this> */
     public function supplierMembership(): HasOne

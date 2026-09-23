@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 import { Ban, FileDown, FileText, LockKeyhole } from 'lucide-react';
 import { store as clarify } from '@/actions/App/Http/Controllers/ClarificationController';
 import { start } from '@/actions/App/Http/Controllers/EvaluationController';
@@ -8,6 +8,7 @@ import {
     publish,
 } from '@/actions/App/Http/Controllers/ProcurementController';
 import {
+    chunk,
     download,
     store as upload,
 } from '@/actions/App/Http/Controllers/ProcurementFileController';
@@ -18,6 +19,8 @@ import { RequestEditor } from '@/components/procurement/request-editor';
 import {
     ActionDialog,
     CheckboxField,
+    ChunkedFileField,
+    DateTimeField,
     EmptyState,
     Field,
     Flash,
@@ -91,19 +94,23 @@ function Upload({
     type: string;
     uuid?: string;
 }) {
+    const { uploads } = usePage().props;
     return (
         <ActionDialog
             title="Attach document"
             action={upload(request.uuid)}
             submit="Upload for checking"
-            description="PDF, DOCX, XLSX, PNG or JPEG. Up to 10 MB per file and ten files per record. Files remain unavailable until security checks pass."
+            description={
+                'PDF, DOCX, XLSX, PNG or JPEG. Up to ' +
+                Math.round(uploads.maxKilobytes / 1024) +
+                ' MB per file and ten files per record. Files remain unavailable until security checks pass.'
+            }
         >
             <input type="hidden" name="parent_type" value={type} />
             <input type="hidden" name="parent_uuid" value={uuid ?? ''} />
-            <Field
+            <ChunkedFileField
                 label="Document"
-                name="file"
-                type="file"
+                chunkUrl={chunk.url(request.uuid)}
                 accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg"
                 required
             />
@@ -819,9 +826,8 @@ export default function Show({
                                         name="lock_version"
                                         value={request.lock_version}
                                     />
-                                    <Field
+                                    <DateTimeField
                                         label="New deadline (browser local time)"
-                                        type="datetime-local"
                                         name="deadline_at"
                                         required
                                     />
@@ -921,11 +927,11 @@ export default function Show({
                                                         </dt>
                                                         <dd className="text-foreground">
                                                             {typeof value ===
-                                                            'object'
-                                                                ? JSON.stringify(
+                                                            'string'
+                                                                ? value
+                                                                : JSON.stringify(
                                                                       value,
-                                                                  )
-                                                                : String(value)}
+                                                                  )}
                                                         </dd>
                                                     </div>
                                                 ))}

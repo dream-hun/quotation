@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Concerns\ProcurementAccess;
 use App\Concerns\ProcurementGuard;
+use App\Enums\ProcurementPermission;
 use App\Models\PurchaseRequest;
 use App\Models\SupplierMember;
 use App\Models\User;
@@ -22,7 +23,7 @@ final readonly class SaveClarification
         DB::transaction(function () use ($actor, $request, $data): void {
             $request = PurchaseRequest::query()->lockForUpdate()->findOrFail($request->id);
             ProcurementAccess::view($actor, $request);
-            $buyer = ProcurementAccess::role($actor, 'buyer');
+            $buyer = ProcurementAccess::can($actor, ProcurementPermission::ManageRequests);
             $supplierId = ProcurementAccess::supplierId($actor);
             abort_unless($buyer || $supplierId !== null, 403);
             ProcurementGuard::require(in_array($request->status, ['open', 'closed', 'evaluating'], true), 'Clarifications are read-only in this state.');

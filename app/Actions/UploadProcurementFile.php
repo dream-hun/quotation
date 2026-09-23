@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Concerns\ProcurementAccess;
 use App\Concerns\ProcurementGuard;
+use App\Enums\ProcurementPermission;
 use App\Models\Attachment;
 use App\Models\PurchaseRequest;
 use App\Models\QuotationRevision;
@@ -39,7 +40,7 @@ final readonly class UploadProcurementFile
                 } else {
                     $thread = $request->clarificationThreads()->whereHas('messages', fn ($query) => $query->where('uuid', $parentUuid))->firstOrFail();
                     $supplierId = ProcurementAccess::supplierId($actor);
-                    abort_unless(ProcurementAccess::role($actor, 'buyer') || ($supplierId !== null && $thread->supplier_id === $supplierId), 404);
+                    abort_unless(ProcurementAccess::can($actor, ProcurementPermission::ManageRequests) || ($supplierId !== null && $thread->supplier_id === $supplierId), 404);
                     ProcurementGuard::require(in_array($request->status, ['open', 'closed', 'evaluating'], true) && $thread->status === 'open', 'This conversation is read-only.');
                     $parent = $thread->messages()->where('uuid', $parentUuid)->where('author_id', $actor->id)->firstOrFail();
                 }

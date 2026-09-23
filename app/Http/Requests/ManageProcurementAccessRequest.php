@@ -6,6 +6,8 @@ namespace App\Http\Requests;
 
 use App\Actions\ManageProcurementAccess;
 use App\Concerns\ProcurementAccess;
+use App\Enums\ProcurementPermission;
+use App\Enums\ProcurementRole;
 use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -29,7 +31,7 @@ final class ManageProcurementAccessRequest extends FormRequest
             return false;
         }
 
-        return ProcurementAccess::role($actor, 'administrator');
+        return ProcurementAccess::can($actor, ProcurementPermission::ManageAccess);
     }
 
     /** @return array<string, list<mixed>> */
@@ -42,8 +44,8 @@ final class ManageProcurementAccessRequest extends FormRequest
             'name' => ['required_unless:type,supplier', 'string', 'max:160'],
             'email' => ['required_if:type,user', 'email', 'max:254', Rule::unique('users', 'email')->ignore(User::query()->where('uuid', $this->input('uuid'))->value('id'))],
             'status' => ['required_if:type,user,supplier', $this->input('type') === 'supplier' ? 'in:active,inactive' : 'in:active,disabled'],
-            'roles' => ['sometimes', 'array', 'max:4'],
-            'roles.*' => ['required', 'in:buyer,approver,auditor,administrator', 'distinct'],
+            'roles' => ['sometimes', 'array', 'max:'.count(ProcurementRole::cases())],
+            'roles.*' => ['required', Rule::enum(ProcurementRole::class), 'distinct'],
             'supplier_uuid' => ['nullable', 'uuid'],
             'replacement_uuid' => ['nullable', 'uuid'],
             'reason' => ['nullable', 'string', 'max:10000'],

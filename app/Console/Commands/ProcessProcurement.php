@@ -6,6 +6,7 @@ namespace App\Console\Commands;
 
 use App\Actions\CloseExpiredRequests;
 use App\Actions\DeliverProcurementMail;
+use App\Actions\PruneUploadChunks;
 use App\Actions\ScanProcurementFiles;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -13,11 +14,11 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
-#[Description('Close expired requests, scan quarantined files, and deliver notification outbox entries')]
+#[Description('Close expired requests, scan quarantined files, deliver notification outbox entries, and prune abandoned uploads')]
 #[Signature('procurement:process {--health : Check database, worker heartbeat and scanner configuration}')]
 final class ProcessProcurement extends Command
 {
-    public function handle(CloseExpiredRequests $close, ScanProcurementFiles $scan, DeliverProcurementMail $mail): int
+    public function handle(CloseExpiredRequests $close, ScanProcurementFiles $scan, DeliverProcurementMail $mail, PruneUploadChunks $prune): int
     {
         if ($this->option('health')) {
             DB::select('SELECT 1');
@@ -30,6 +31,7 @@ final class ProcessProcurement extends Command
         $closed = $close->handle();
         $scanned = $scan->handle();
         $sent = $mail->handle();
+        $prune->handle();
         Cache::put('procurement.worker_heartbeat', now()->toISOString(), now()->addMinutes(10));
         $this->info("Closed: $closed; scanned: $scanned; mail sent: $sent.");
 

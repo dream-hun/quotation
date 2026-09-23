@@ -6,6 +6,7 @@ import {
 } from '@/actions/App/Http/Controllers/ProcurementController';
 import {
     ActionDialog,
+    DateTimeField,
     Field,
     SelectField,
     TextField,
@@ -111,10 +112,9 @@ export function RequestEditor({
                         label: currency.code + ' · ' + currency.name,
                     }))}
                 />
-                <Field
+                <DateTimeField
                     label="Deadline (your browser’s local time)"
                     name="deadline_at"
-                    type="datetime-local"
                     defaultValue={localDeadline}
                 />
                 <SelectField

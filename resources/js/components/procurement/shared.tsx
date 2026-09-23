@@ -1,12 +1,14 @@
-import { Form, Link, usePage } from '@inertiajs/react';
+import { Form, Link, http, usePage } from '@inertiajs/react';
 import type { VariantProps } from 'class-variance-authority';
-import { CircleAlert, CircleCheck } from 'lucide-react';
-import { useId, useState } from 'react';
+import { format, isValid, parse } from 'date-fns';
+import { CalendarIcon, CircleAlert, CircleCheck } from 'lucide-react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { ComponentProps, ComponentType, ReactNode } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { buttonVariants } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
 import {
     Card,
     CardContent,
@@ -26,6 +28,11 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover';
 import {
     Select,
     SelectContent,
@@ -189,6 +196,372 @@ export function Field({
         <div className={cn('grid gap-2', className)}>
             <Label htmlFor={id}>{label}</Label>
             {children ?? <Input id={id} {...props} />}
+        </div>
+    );
+}
+
+function parseDateValue(value: string | null | undefined, pattern: string) {
+    if (!value) {
+        return undefined;
+    }
+
+    const date = parse(value, pattern, new Date());
+
+    return isValid(date) ? date : undefined;
+}
+
+/**
+ * Submits the value through a text input that is hidden from view but still
+ * takes part in native form validation, so `required` blocks empty submits.
+ */
+function RequiredValueInput({
+    name,
+    value,
+    required,
+}: {
+    name: string;
+    value: string;
+    required?: boolean;
+}) {
+    return (
+        <input
+            type="text"
+            name={name}
+            value={value}
+            required={required}
+            onChange={() => {}}
+            tabIndex={-1}
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-px w-full opacity-0"
+        />
+    );
+}
+
+function DatePicker({
+    id,
+    date,
+    onSelect,
+    placeholder,
+    disabled,
+}: {
+    id: string;
+    date: Date | undefined;
+    onSelect: (date: Date | undefined) => void;
+    placeholder: string;
+    disabled?: boolean;
+}) {
+    const [open, setOpen] = useState(false);
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button
+                    id={id}
+                    type="button"
+                    variant="outline"
+                    disabled={disabled}
+                    className={cn(
+                        'w-full justify-start font-normal',
+                        !date && 'text-muted-foreground',
+                    )}
+                >
+                    <CalendarIcon className="size-4" />
+                    {date ? format(date, 'PPP') : placeholder}
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                    mode="single"
+                    selected={date}
+                    defaultMonth={date}
+                    onSelect={(next) => {
+                        onSelect(next);
+                        setOpen(false);
+                    }}
+                />
+            </PopoverContent>
+        </Popover>
+    );
+}
+
+/**
+ * A calendar date picker that submits a `yyyy-MM-dd` value, like a native
+ * date input, through a named input so it works inside plain and Inertia forms.
+ */
+export function DateField({
+    label,
+    name,
+    defaultValue,
+    placeholder = 'Pick a date',
+    required,
+    disabled,
+    className,
+}: {
+    label: string;
+    name: string;
+    defaultValue?: string | null;
+    placeholder?: string;
+    required?: boolean;
+    disabled?: boolean;
+    className?: string;
+}) {
+    const id = useId();
+    const [date, setDate] = useState(() =>
+        parseDateValue(defaultValue?.slice(0, 10), 'yyyy-MM-dd'),
+    );
+    return (
+        <div className={cn('relative grid gap-2', className)}>
+            <Label htmlFor={id}>{label}</Label>
+            <DatePicker
+                id={id}
+                date={date}
+                onSelect={setDate}
+                placeholder={placeholder}
+                disabled={disabled}
+            />
+            <RequiredValueInput
+                name={name}
+                value={date ? format(date, 'yyyy-MM-dd') : ''}
+                required={required}
+            />
+        </div>
+    );
+}
+
+/**
+ * A calendar date picker with a time input that submits a local
+ * `yyyy-MM-ddTHH:mm` value, matching a native datetime-local input.
+ */
+export function DateTimeField({
+    label,
+    name,
+    defaultValue,
+    placeholder = 'Pick a date',
+    required,
+    disabled,
+    className,
+}: {
+    label: string;
+    name: string;
+    defaultValue?: string | null;
+    placeholder?: string;
+    required?: boolean;
+    disabled?: boolean;
+    className?: string;
+}) {
+    const id = useId();
+    const initial = parseDateValue(
+        defaultValue?.slice(0, 16),
+        "yyyy-MM-dd'T'HH:mm",
+    );
+    const [date, setDate] = useState(initial);
+    const [time, setTime] = useState(initial ? format(initial, 'HH:mm') : '');
+    const effectiveTime = time || '17:00';
+    return (
+        <div className={cn('relative grid gap-2', className)}>
+            <Label htmlFor={id}>{label}</Label>
+            <div className="flex gap-2">
+                <DatePicker
+                    id={id}
+                    date={date}
+                    onSelect={setDate}
+                    placeholder={placeholder}
+                    disabled={disabled}
+                />
+                <Input
+                    type="time"
+                    aria-label={label + ' time'}
+                    value={effectiveTime}
+                    onChange={(event) => setTime(event.target.value)}
+                    disabled={disabled}
+                    className="w-32 shrink-0"
+                />
+            </div>
+            <RequiredValueInput
+                name={name}
+                value={
+                    date ? format(date, 'yyyy-MM-dd') + 'T' + effectiveTime : ''
+                }
+                required={required}
+            />
+        </div>
+    );
+}
+
+function createUploadId(): string {
+    if (typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+
+    // crypto.randomUUID is unavailable outside secure contexts (plain http).
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = Array.from(bytes, (byte) =>
+        byte.toString(16).padStart(2, '0'),
+    ).join('');
+
+    return [
+        hex.slice(0, 8),
+        hex.slice(8, 12),
+        hex.slice(12, 16),
+        hex.slice(16, 20),
+        hex.slice(20),
+    ].join('-');
+}
+
+function chunkErrorMessage(error: unknown): string {
+    const response =
+        error && typeof error === 'object' && 'response' in error
+            ? (error.response as { status: number; data: string })
+            : null;
+    if (response?.status === 429) {
+        return 'Too many upload requests. Wait a minute and try again.';
+    }
+
+    try {
+        const body = JSON.parse(response?.data ?? '') as {
+            message?: string;
+            errors?: Record<string, string[]>;
+        };
+        const firstError = Object.values(body.errors ?? {})[0]?.[0];
+
+        return firstError ?? body.message ?? 'The upload failed. Try again.';
+    } catch {
+        return 'The upload failed. Check your connection and try again.';
+    }
+}
+
+/**
+ * A file input that uploads the chosen file in chunks as soon as it is picked,
+ * so large files stay under the server's request size limits. The form then
+ * submits only the upload reference (`upload_uuid`, `total_chunks`,
+ * `file_name`), which the server reassembles.
+ */
+export function ChunkedFileField({
+    label,
+    chunkUrl,
+    accept,
+    required,
+}: {
+    label: string;
+    chunkUrl: string;
+    accept?: string;
+    required?: boolean;
+}) {
+    const id = useId();
+    const { uploads } = usePage().props;
+    const [upload, setUpload] = useState<{
+        uuid: string;
+        totalChunks: number;
+        fileName: string;
+    } | null>(null);
+    const [progress, setProgress] = useState<number | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const controller = useRef<AbortController | null>(null);
+
+    useEffect(() => () => controller.current?.abort(), []);
+
+    async function send(file: File | undefined) {
+        controller.current?.abort();
+        setUpload(null);
+        setError(null);
+        setProgress(null);
+        if (!file) {
+            return;
+        }
+
+        if (file.size > uploads.maxKilobytes * 1024) {
+            setError(
+                'The file may not be greater than ' +
+                    Math.round(uploads.maxKilobytes / 1024) +
+                    ' MB.',
+            );
+            return;
+        }
+
+        const abort = new AbortController();
+        controller.current = abort;
+        const chunkBytes = uploads.chunkKilobytes * 1024;
+        const totalChunks = Math.max(1, Math.ceil(file.size / chunkBytes));
+        const uuid = createUploadId();
+        setProgress(0);
+        try {
+            for (let index = 0; index < totalChunks; index++) {
+                const data = new FormData();
+                data.append('upload_uuid', uuid);
+                data.append('chunk_index', String(index));
+                data.append(
+                    'chunk',
+                    file.slice(index * chunkBytes, (index + 1) * chunkBytes),
+                    file.name,
+                );
+                await http.getClient().request({
+                    method: 'post',
+                    url: chunkUrl,
+                    data,
+                    signal: abort.signal,
+                    headers: { Accept: 'application/json' },
+                });
+                setProgress(Math.round(((index + 1) / totalChunks) * 100));
+            }
+
+            setUpload({ uuid, totalChunks, fileName: file.name });
+        } catch (exception) {
+            if (!abort.signal.aborted) {
+                setError(chunkErrorMessage(exception));
+            }
+        } finally {
+            if (controller.current === abort) {
+                setProgress(null);
+            }
+        }
+    }
+
+    return (
+        <div className="relative grid gap-2">
+            <Label htmlFor={id}>{label}</Label>
+            <Input
+                id={id}
+                type="file"
+                accept={accept}
+                onChange={(event) => send(event.target.files?.[0])}
+                aria-invalid={error !== null}
+            />
+            {progress !== null && (
+                <div className="grid gap-1">
+                    <div className="bg-muted h-2 overflow-hidden rounded-full">
+                        <div
+                            className="bg-primary h-full transition-[width]"
+                            style={{ width: progress + '%' }}
+                        />
+                    </div>
+                    <p className="text-muted-foreground text-xs">
+                        Uploading… {progress}%
+                    </p>
+                </div>
+            )}
+            {upload && (
+                <p className="text-muted-foreground flex items-center gap-1 text-xs">
+                    <CircleCheck className="size-3.5 text-emerald-600" />
+                    Ready to submit
+                </p>
+            )}
+            {error && <p className="text-destructive text-sm">{error}</p>}
+            <RequiredValueInput
+                name="upload_uuid"
+                value={upload?.uuid ?? ''}
+                required={required}
+            />
+            <input
+                type="hidden"
+                name="total_chunks"
+                value={upload?.totalChunks ?? ''}
+            />
+            <input
+                type="hidden"
+                name="file_name"
+                value={upload?.fileName ?? ''}
+            />
         </div>
     );
 }

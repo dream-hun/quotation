@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Concerns\ProcurementAccess;
 use App\Concerns\ProcurementGuard;
+use App\Enums\ProcurementPermission;
 use App\Models\PurchaseRequest;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -17,7 +18,7 @@ final readonly class DecideApproval
 
     public function handle(User $actor, PurchaseRequest $request, int $version, string $decision, string $reason): void
     {
-        abort_unless(ProcurementAccess::role($actor, 'approver'), 403);
+        abort_unless(ProcurementAccess::can($actor, ProcurementPermission::DecideApprovals), 403);
         DB::transaction(function () use ($actor, $request, $version, $decision, $reason): void {
             $request = PurchaseRequest::query()->lockForUpdate()->findOrFail($request->id);
             ProcurementGuard::require($request->status === 'pending_approval', 'This request has no pending approval.');

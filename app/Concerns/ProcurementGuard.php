@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Concerns;
 
+use App\Enums\ProcurementPermission;
 use App\Models\PurchaseRequest;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -51,7 +52,7 @@ final class ProcurementGuard
     public static function approver(PurchaseRequest $request, ?int $preparer = null): void
     {
         $approver = User::query()->find($request->assigned_approver_id);
-        self::require($approver !== null && ProcurementAccess::role($approver, 'approver')
+        self::require($approver !== null && ProcurementAccess::can($approver, ProcurementPermission::DecideApprovals)
             && $approver->id !== $request->created_by && $approver->id !== $preparer,
             'Assign an active approver who is independent of the creator and evaluator.', 'assigned_approver_id');
     }

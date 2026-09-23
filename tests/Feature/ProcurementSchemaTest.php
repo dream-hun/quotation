@@ -23,7 +23,6 @@ use App\Models\RequestItem;
 use App\Models\RevisionAttachment;
 use App\Models\SupplierMember;
 use App\Models\User;
-use App\Models\UserRole;
 use Database\Seeders\ProcurementDemoSeeder;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -64,9 +63,9 @@ test('supplier membership and internal roles cannot coexist', function (bool $me
 
     if ($membershipFirst) {
         SupplierMember::factory()->create(['user_id' => $user->id]);
-        expect(fn () => UserRole::factory()->create(['user_id' => $user->id]))->toThrow(QueryException::class);
+        expect(fn () => $user->assignRole('buyer'))->toThrow(QueryException::class);
     } else {
-        UserRole::factory()->create(['user_id' => $user->id]);
+        $user->assignRole('buyer');
         expect(fn () => SupplierMember::factory()->create(['user_id' => $user->id]))->toThrow(QueryException::class);
     }
 })->with([true, false]);

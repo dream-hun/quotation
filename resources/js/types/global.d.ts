@@ -12,6 +12,7 @@ declare module '@inertiajs/core' {
             name: string;
             auth: Auth;
             sidebarOpen: boolean;
+            uploads: { maxKilobytes: number; chunkKilobytes: number };
             [key: string]: unknown;
         };
     }

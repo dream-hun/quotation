@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Concerns\ProcurementAccess;
+use App\Enums\ProcurementPermission;
 use App\Models\ClarificationThread;
 use App\Models\EvaluationCandidate;
 use App\Models\PurchaseRequest;
@@ -20,7 +21,7 @@ final readonly class ReadProcurementWorkspace
     {
         ProcurementAccess::view($actor, $request);
         $supplierId = ProcurementAccess::supplierId($actor);
-        $buyer = ProcurementAccess::role($actor, 'buyer');
+        $buyer = ProcurementAccess::can($actor, ProcurementPermission::ManageRequests);
         $commercial = ProcurementAccess::commercial($actor, $request);
         $request->load(['items', 'criteria', 'assignedApprover:id,uuid,name', 'attachmentLinks.attachment']);
         $invitations = $request->invitations()->when($supplierId !== null, fn ($query) => $query->where('supplier_id', $supplierId))
@@ -49,7 +50,7 @@ final readonly class ReadProcurementWorkspace
             'attachments' => $revision->attachmentLinks->map(fn ($link) => $link->attachment->only(['uuid', 'original_name', 'scan_status'])),
         ]);
         $rounds = $request->evaluationRounds()->when(! $commercial, fn ($query) => $query->whereRaw('1 = 0'))->with(['candidates.quotationRevision', 'candidates.lineAssessments.quotationLine', 'candidates.criterionAssessments.criterion', 'approvalCase'])->orderByDesc('round_number')->get();
-        $approver = $rounds->isNotEmpty() && ProcurementAccess::role($actor, 'approver');
+        $approver = $rounds->isNotEmpty() && ProcurementAccess::can($actor, ProcurementPermission::DecideApprovals);
         $threads = $request->clarificationThreads()->when($supplierId !== null, fn ($query) => $query->where(fn ($query) => $query->where('visibility', 'all_invited')->orWhere('supplier_id', $supplierId)))
             ->with(['messages.author:id,name', 'messages.attachmentLinks.attachment'])->orderByDesc('id')->limit(50)->get();
 
