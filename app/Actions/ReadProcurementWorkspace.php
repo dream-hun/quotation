@@ -34,13 +34,12 @@ final readonly class ReadProcurementWorkspace
                 ->where('event_type', 'invitation.received')->select('event_key', 'email_status')
                 ->selectRaw('count(*) as total')->groupBy('event_key', 'email_status')->get();
             foreach ($totals as $total) {
-                if (! is_string($total->event_key) || ! is_string($total->email_status) || ! is_numeric($total->total)) {
-                    throw new UnexpectedValueException('Invalid invitation delivery summary.');
-                }
+                throw_if(! is_string($total->event_key) || ! is_string($total->email_status) || ! is_numeric($total->total), UnexpectedValueException::class, 'Invalid invitation delivery summary.');
 
                 $delivery[$total->event_key][$total->email_status] = (int) $total->total;
             }
         }
+
         $participation = $invitations->map(fn ($invitation): array => [
             'uuid' => $invitation->uuid, 'lock_version' => $invitation->lock_version,
             'supplier_uuid' => $invitation->supplier->uuid, 'supplier_name' => $invitation->supplier->legal_name,

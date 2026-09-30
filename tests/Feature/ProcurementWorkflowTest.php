@@ -584,6 +584,7 @@ test('internal visibility checks have a bounded query cost for each role', funct
 test('internal visibility rechecks role revocation on the same user instance', function (): void {
     $user = User::factory()->create()->refresh();
     $user->assignRole('buyer');
+
     expect(ProcurementAccess::internal($user))->toBeTrue();
 
     DB::table('model_has_roles')->where('model_id', $user->id)->delete();

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Rector\CodingStyle\Rector\ClassMethod\MakeInheritedMethodVisibilitySameAsParentRector;
 use Rector\Config\RectorConfig;
 use Rector\Php85\Rector\Property\AddOverrideAttributeToOverriddenPropertiesRector;
+use RectorLaravel\Rector\Coalesce\ApplyDefaultInsteadOfNullCoalesceRector;
 use RectorLaravel\Set\LaravelSetList;
 
 return RectorConfig::configure()
@@ -36,6 +37,10 @@ return RectorConfig::configure()
     ->withSkip([
         MakeInheritedMethodVisibilitySameAsParentRector::class,
         AddOverrideAttributeToOverriddenPropertiesRector::class,
+        // Spatie ships null pivot keys, so config()'s default would be ignored.
+        ApplyDefaultInsteadOfNullCoalesceRector::class => [
+            __DIR__.'/database/migrations/2026_09_15_144542_create_permission_tables.php',
+        ],
     ])
     ->withPreparedSets(
         deadCode: true,

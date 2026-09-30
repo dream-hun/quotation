@@ -24,6 +24,7 @@ test('approaching deadlines exclude expired and distant requests and ignore hist
     $this->freezeTime();
     $buyer = User::factory()->create();
     $buyer->assignRole('buyer');
+
     $last = PurchaseRequest::factory()->create(['status' => 'open', 'deadline_at' => now()->addDays(7)]);
     $first = PurchaseRequest::factory()->create(['status' => 'open', 'deadline_at' => now()->addSecond()]);
     PurchaseRequest::factory()->create(['status' => 'open', 'deadline_at' => now()]);
@@ -41,6 +42,7 @@ test('buyer work queue follows draft ownership and evaluation assignment', funct
     $this->freezeTime();
     $buyer = User::factory()->create();
     $buyer->assignRole('buyer');
+
     $draft = PurchaseRequest::factory()->create(['created_by' => $buyer->id]);
     $closed = PurchaseRequest::factory()->create(['created_by' => $buyer->id, 'status' => 'open', 'deadline_at' => now()]);
     $evaluating = PurchaseRequest::factory()->create(['status' => 'evaluating']);
