@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\EvaluationRound;
 use App\Models\PurchaseRequest;
+use App\Models\Supplier;
 use App\Models\User;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -70,4 +71,24 @@ test('overview lists are bounded while retaining full totals', function (): void
         ->assertInertia(fn (Assert $page): Assert => $page
             ->where('assignedTasks.total', 9)->has('assignedTasks.data', 8)
             ->where('approachingDeadlines.total', 9)->has('approachingDeadlines.data', 8));
+});
+
+test('overview trends count weekly publications within the visible requests', function (): void {
+    $this->freezeTime();
+    $buyer = User::factory()->create();
+    $buyer->assignRole('buyer');
+    PurchaseRequest::factory()->create(['status' => 'open', 'published_at' => now()]);
+    PurchaseRequest::factory()->count(2)->create(['status' => 'open', 'published_at' => now()->subWeeks(3)]);
+    PurchaseRequest::factory()->create(['status' => 'open', 'published_at' => now()->subWeeks(13)]);
+    $supplier = User::factory()->create();
+    $supplier->supplierMembership()->create(['supplier_id' => Supplier::factory()->create()->id, 'status' => 'active', 'assigned_by' => $buyer->id]);
+
+    $this->actingAs($buyer)->get(route('dashboard'))
+        ->assertInertia(fn (Assert $page): Assert => $page
+            ->has('trends.weeks', 12)
+            ->where('trends.published', [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 1])
+            ->where('trends.awards', array_fill(0, 12, 0)));
+
+    $this->actingAs($supplier)->get(route('dashboard'))
+        ->assertInertia(fn (Assert $page): Assert => $page->where('trends.published', array_fill(0, 12, 0)));
 });

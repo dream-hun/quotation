@@ -1,26 +1,35 @@
-import { Head, router } from '@inertiajs/react';
-import { CircleAlert, CircleCheck, Coins, Search, Users } from 'lucide-react';
+import { Head } from '@inertiajs/react';
+import {
+    CircleAlert,
+    CircleCheck,
+    CircleOff,
+    Pencil,
+    Plus,
+} from 'lucide-react';
+import { useState } from 'react';
 import {
     index,
     store,
 } from '@/actions/App/Http/Controllers/AdministrationController';
 import {
     ActionDialog,
-    CheckboxField,
-    EmptyState,
+    DataTableFrame,
     Field,
     Flash,
     PageContainer,
     PageHeader,
-    Pagination,
+    RowActions,
     Section,
     SelectField,
     Status,
-    TextField,
 } from '@/components/procurement/shared';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import {
     Table,
     TableBody,
@@ -29,24 +38,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import type { PageData } from '@/types/procurement';
 
-type Account = {
-    uuid: string;
-    name: string;
-    email: string;
-    status: string;
-    lock_version: number;
-    roles: string[];
-    supplier_uuid: string | null;
-};
-type Supplier = {
-    uuid: string;
-    legal_name: string;
-    contact_email: string;
-    status: string;
-    lock_version: number;
-};
 type Currency = {
     uuid: string;
     code: string;
@@ -56,12 +48,9 @@ type Currency = {
     lock_version: number;
 };
 type Props = {
-    users: PageData<Account>;
-    suppliers: Supplier[];
     currencies: Currency[];
     emailFailures: number;
     workerHealthy: boolean;
-    q: string;
     organization: {
         uuid: string;
         name: string;
@@ -79,167 +68,29 @@ function editorTrigger(label: string, isEditing: boolean) {
     );
 }
 
-function AccountEditor({
-    user,
-    suppliers,
-    users,
+function CurrencyEditor({
+    currency,
+    open,
+    onOpenChange,
 }: {
-    user?: Account;
-    suppliers: Supplier[];
-    users: Account[];
+    currency?: Currency;
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
 }) {
     return (
         <ActionDialog
-            title={user ? 'Edit account' : 'Add account'}
-            trigger={editorTrigger(user ? 'Edit' : 'Add account', !!user)}
-            action={store()}
-            description="Assign internal roles or supplier membership. New users receive a password setup email."
-        >
-            <input type="hidden" name="type" value="user" />
-            <input type="hidden" name="uuid" value={user?.uuid ?? ''} />
-            <input
-                type="hidden"
-                name="lock_version"
-                value={user?.lock_version ?? 0}
-            />
-            <div className="grid gap-4 sm:grid-cols-2">
-                <Field
-                    label="Full name"
-                    name="name"
-                    defaultValue={user?.name}
-                    required
-                />
-                <Field
-                    label="Email"
-                    name="email"
-                    type="email"
-                    defaultValue={user?.email}
-                    required
-                />
-            </div>
-            <SelectField
-                label="Account status"
-                name="status"
-                defaultValue={user?.status ?? 'active'}
-                options={[
-                    { value: 'active', label: 'Active' },
-                    { value: 'disabled', label: 'Disabled' },
-                ]}
-            />
-            <fieldset className="grid gap-3">
-                <legend className="mb-2 text-sm font-medium">
-                    Internal roles
-                </legend>
-                <div className="grid gap-2 sm:grid-cols-2">
-                    {['buyer', 'approver', 'auditor', 'administrator'].map(
-                        (role) => (
-                            <CheckboxField
-                                key={role}
-                                bordered
-                                name="roles[]"
-                                value={role}
-                                defaultChecked={user?.roles.includes(role)}
-                                label={role[0].toUpperCase() + role.slice(1)}
-                            />
-                        ),
-                    )}
-                </div>
-            </fieldset>
-            <SelectField
-                label="Supplier membership (requires no internal roles)"
-                name="supplier_uuid"
-                defaultValue={user?.supplier_uuid}
-                options={[
-                    { value: '', label: 'Internal account / no supplier' },
-                    ...suppliers
-                        .filter((supplier) => supplier.status === 'active')
-                        .map((supplier) => ({
-                            value: supplier.uuid,
-                            label: supplier.legal_name,
-                        })),
-                ]}
-            />
-            {user && (
-                <>
-                    <SelectField
-                        label="Replacement approver (when removing an assigned approver)"
-                        name="replacement_uuid"
-                        options={[
-                            { value: '', label: 'Not required' },
-                            ...users
-                                .filter(
-                                    (person) =>
-                                        person.uuid !== user.uuid &&
-                                        person.roles.includes('approver') &&
-                                        person.status === 'active',
-                                )
-                                .map((person) => ({
-                                    value: person.uuid,
-                                    label: person.name,
-                                })),
-                        ]}
-                    />
-                    <TextField
-                        label="Reason for approver reassignment"
-                        name="reason"
-                    />
-                </>
-            )}
-        </ActionDialog>
-    );
-}
-
-function SupplierEditor({ supplier }: { supplier?: Supplier }) {
-    return (
-        <ActionDialog
-            title={supplier ? 'Edit supplier' : 'Add supplier'}
-            trigger={editorTrigger(
-                supplier ? 'Edit' : 'Add supplier',
-                !!supplier,
-            )}
-            action={store()}
-        >
-            <input type="hidden" name="type" value="supplier" />
-            <input type="hidden" name="uuid" value={supplier?.uuid ?? ''} />
-            <input
-                type="hidden"
-                name="lock_version"
-                value={supplier?.lock_version ?? 0}
-            />
-            <Field
-                label="Legal name"
-                name="legal_name"
-                defaultValue={supplier?.legal_name}
-                required
-            />
-            <Field
-                label="Contact email"
-                name="contact_email"
-                type="email"
-                defaultValue={supplier?.contact_email}
-                required
-            />
-            <SelectField
-                label="Supplier status"
-                name="status"
-                defaultValue={supplier?.status ?? 'active'}
-                options={[
-                    { value: 'active', label: 'Active' },
-                    { value: 'inactive', label: 'Inactive' },
-                ]}
-            />
-        </ActionDialog>
-    );
-}
-
-function CurrencyEditor({ currency }: { currency?: Currency }) {
-    return (
-        <ActionDialog
             title={currency ? 'Edit currency' : 'Add currency'}
-            trigger={editorTrigger(
-                currency ? 'Edit' : 'Add currency',
-                !!currency,
-            )}
+            trigger={
+                currency ? null : (
+                    <Button>
+                        <Plus />
+                        Add currency
+                    </Button>
+                )
+            }
+            open={open}
+            onOpenChange={onOpenChange}
+            submit={currency ? 'Save changes' : 'Add currency'}
             action={store()}
             description="Precision affects new publications only."
         >
@@ -285,23 +136,103 @@ function CurrencyEditor({ currency }: { currency?: Currency }) {
     );
 }
 
+function CurrencyStatusDialog({
+    currency,
+    open,
+    onOpenChange,
+}: {
+    currency: Currency;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+}) {
+    return (
+        <ActionDialog
+            title={
+                currency.active
+                    ? `Deactivate ${currency.code}?`
+                    : `Activate ${currency.code}?`
+            }
+            trigger={null}
+            open={open}
+            onOpenChange={onOpenChange}
+            action={store()}
+            submit={currency.active ? 'Deactivate' : 'Activate'}
+            submitVariant={currency.active ? 'destructive' : 'default'}
+            description={
+                currency.active
+                    ? 'New requests can no longer use this currency. Existing requests keep it.'
+                    : 'New requests can use this currency again.'
+            }
+        >
+            <input type="hidden" name="type" value="currency" />
+            <input
+                type="hidden"
+                name="lock_version"
+                value={currency.lock_version}
+            />
+            <input type="hidden" name="code" value={currency.code} />
+            <input type="hidden" name="name" value={currency.name} />
+            <input
+                type="hidden"
+                name="minor_digits"
+                value={currency.minor_digits}
+            />
+            <input
+                type="hidden"
+                name="active"
+                value={currency.active ? '0' : '1'}
+            />
+        </ActionDialog>
+    );
+}
+
+function CurrencyRowActions({ currency }: { currency: Currency }) {
+    const [dialog, setDialog] = useState<'edit' | 'status' | null>(null);
+    const close = (open: boolean) => !open && setDialog(null);
+    return (
+        <>
+            <RowActions label={`Actions for ${currency.code}`}>
+                <DropdownMenuLabel>{currency.code}</DropdownMenuLabel>
+                <DropdownMenuItem onSelect={() => setDialog('edit')}>
+                    <Pencil />
+                    Edit currency
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                    variant={currency.active ? 'destructive' : 'default'}
+                    onSelect={() => setDialog('status')}
+                >
+                    {currency.active ? <CircleOff /> : <CircleCheck />}
+                    {currency.active ? 'Deactivate' : 'Activate'}
+                </DropdownMenuItem>
+            </RowActions>
+            <CurrencyEditor
+                currency={currency}
+                open={dialog === 'edit'}
+                onOpenChange={close}
+            />
+            <CurrencyStatusDialog
+                currency={currency}
+                open={dialog === 'status'}
+                onOpenChange={close}
+            />
+        </>
+    );
+}
+
 export default function Administration({
-    users,
-    suppliers,
     currencies,
     organization,
     emailFailures,
     workerHealthy,
-    q,
 }: Props) {
     return (
         <>
-            <Head title="Administration" />
+            <Head title="Configuration" />
             <PageContainer>
                 <PageHeader
-                    eyebrow="Workspace configuration"
-                    title="Administration"
-                    description="Manage access while preserving historical decisions."
+                    title="Configuration"
+                    description="The buying organization, supported currencies and service health."
                 />
                 <Flash />
                 {!organization && (
@@ -402,189 +333,75 @@ export default function Administration({
                         </p>
                     </Section>
                 </div>
-                <Section
-                    title="Accounts & permissions"
-                    description="Internal roles and supplier memberships."
-                    action={
-                        <AccountEditor
-                            suppliers={suppliers}
-                            users={users.data}
-                        />
-                    }
-                >
-                    <form
-                        className="mb-4 flex max-w-md items-end gap-2"
-                        onSubmit={(event) => {
-                            event.preventDefault();
-                            router.get(
-                                index.url(),
-                                {
-                                    q: (
-                                        event.currentTarget.elements.namedItem(
-                                            'q',
-                                        ) as HTMLInputElement
-                                    ).value,
-                                },
-                                { preserveState: true },
-                            );
-                        }}
-                    >
-                        <Field
-                            label="Find an account"
-                            name="q"
-                            defaultValue={q}
-                            placeholder="Name or email"
-                            className="flex-1"
-                        />
-                        <Button type="submit" variant="outline">
-                            <Search className="size-4" />
-                            Search
-                        </Button>
-                    </form>
-                    {users.data.length === 0 ? (
-                        <EmptyState
-                            icon={Users}
-                            title="No accounts found"
-                            description={
-                                q ? 'Try a different name or email.' : undefined
-                            }
-                        />
-                    ) : (
+                <div className="grid gap-4">
+                    <div className="flex flex-wrap items-end justify-between gap-2">
+                        <div>
+                            <h2 className="font-semibold">
+                                Supported currencies
+                            </h2>
+                            <p className="text-muted-foreground text-sm">
+                                Currencies buyers can choose for new requests.
+                            </p>
+                        </div>
+                        <CurrencyEditor />
+                    </div>
+                    <DataTableFrame>
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Account</TableHead>
-                                    <TableHead>Access</TableHead>
-                                    <TableHead>Status</TableHead>
+                                    <TableHead>Code</TableHead>
+                                    <TableHead>Name</TableHead>
                                     <TableHead className="text-right">
+                                        Decimal places
+                                    </TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead className="w-12">
                                         <span className="sr-only">Actions</span>
                                     </TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {users.data.map((user) => (
-                                    <TableRow key={user.uuid}>
-                                        <TableCell className="py-3">
-                                            <p className="font-medium">
-                                                {user.name}
-                                            </p>
-                                            <p className="text-muted-foreground text-xs">
-                                                {user.email}
-                                            </p>
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="flex flex-wrap gap-1">
-                                                {user.roles.length > 0 ? (
-                                                    user.roles.map((role) => (
-                                                        <Badge
-                                                            key={role}
-                                                            variant="secondary"
-                                                            className="capitalize"
-                                                        >
-                                                            {role}
-                                                        </Badge>
-                                                    ))
-                                                ) : user.supplier_uuid ? (
-                                                    <Badge variant="outline">
-                                                        Supplier
-                                                    </Badge>
-                                                ) : (
-                                                    <span className="text-muted-foreground text-sm">
-                                                        No role assigned
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Status value={user.status} />
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <AccountEditor
-                                                user={user}
-                                                suppliers={suppliers}
-                                                users={users.data}
-                                            />
+                                {currencies.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell
+                                            colSpan={5}
+                                            className="text-muted-foreground h-24 text-center"
+                                        >
+                                            No currencies yet.
                                         </TableCell>
                                     </TableRow>
-                                ))}
+                                ) : (
+                                    currencies.map((currency) => (
+                                        <TableRow key={currency.uuid}>
+                                            <TableCell className="font-mono font-medium">
+                                                {currency.code}
+                                            </TableCell>
+                                            <TableCell>
+                                                {currency.name}
+                                            </TableCell>
+                                            <TableCell className="text-right tabular-nums">
+                                                {currency.minor_digits}
+                                            </TableCell>
+                                            <TableCell>
+                                                <Status
+                                                    value={
+                                                        currency.active
+                                                            ? 'active'
+                                                            : 'inactive'
+                                                    }
+                                                />
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <CurrencyRowActions
+                                                    currency={currency}
+                                                />
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
                             </TableBody>
                         </Table>
-                    )}
-                    <div className="mt-4 border-t pt-4">
-                        <Pagination page={users} />
-                    </div>
-                </Section>
-                <div className="grid gap-4 lg:grid-cols-2">
-                    <Section
-                        title="Supplier companies"
-                        action={<SupplierEditor />}
-                    >
-                        {suppliers.length === 0 ? (
-                            <EmptyState icon={Users} title="No suppliers yet" />
-                        ) : (
-                            <div className="-my-2 divide-y">
-                                {suppliers.map((supplier) => (
-                                    <div
-                                        key={supplier.uuid}
-                                        className="flex items-center gap-3 py-2"
-                                    >
-                                        <div className="min-w-0 flex-1">
-                                            <p className="truncate font-medium">
-                                                {supplier.legal_name}
-                                            </p>
-                                            <p className="text-muted-foreground truncate text-sm">
-                                                {supplier.contact_email}
-                                            </p>
-                                        </div>
-                                        <Status value={supplier.status} />
-                                        <SupplierEditor supplier={supplier} />
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </Section>
-                    <Section
-                        title="Supported currencies"
-                        action={<CurrencyEditor />}
-                    >
-                        {currencies.length === 0 ? (
-                            <EmptyState
-                                icon={Coins}
-                                title="No currencies yet"
-                            />
-                        ) : (
-                            <div className="-my-2 divide-y">
-                                {currencies.map((currency) => (
-                                    <div
-                                        key={currency.uuid}
-                                        className="flex items-center gap-3 py-2"
-                                    >
-                                        <div className="min-w-0 flex-1">
-                                            <p className="font-medium">
-                                                {currency.code}
-                                                <span className="text-muted-foreground font-normal">
-                                                    {' · '}
-                                                    {currency.name}
-                                                </span>
-                                            </p>
-                                            <p className="text-muted-foreground text-sm">
-                                                {currency.minor_digits} decimal
-                                                places
-                                            </p>
-                                        </div>
-                                        <Status
-                                            value={
-                                                currency.active
-                                                    ? 'active'
-                                                    : 'inactive'
-                                            }
-                                        />
-                                        <CurrencyEditor currency={currency} />
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </Section>
+                    </DataTableFrame>
                 </div>
             </PageContainer>
         </>
@@ -610,5 +427,5 @@ function ReadinessItem({
     );
 }
 Administration.layout = {
-    breadcrumbs: [{ title: 'Administration', href: index() }],
+    breadcrumbs: [{ title: 'Configuration', href: index() }],
 };

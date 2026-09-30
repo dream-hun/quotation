@@ -1,4 +1,5 @@
-import { Scale, TriangleAlert } from 'lucide-react';
+import { ClipboardCheck, Scale, TriangleAlert } from 'lucide-react';
+import { useState } from 'react';
 import {
     assess,
     decide,
@@ -8,6 +9,7 @@ import {
     ActionDialog,
     EmptyState,
     money,
+    RowActions,
     Section,
     SelectField,
     Status,
@@ -15,6 +17,7 @@ import {
 } from '@/components/procurement/shared';
 import { FrozenEvidence } from '@/components/procurement/frozen-evidence';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import {
     Table,
     TableBody,
@@ -40,14 +43,21 @@ function Assessment({
     request,
     revision,
     candidate,
+    open,
+    onOpenChange,
 }: {
     request: Procurement;
     revision: Revision;
     candidate: Candidate;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
 }) {
     return (
         <ActionDialog
-            title="Record findings"
+            title={`Record findings · ${revision.supplier_name_snapshot}`}
+            trigger={null}
+            open={open}
+            onOpenChange={onOpenChange}
             action={assess(request.uuid)}
             description="Record evidence for every specification and criterion. Eligibility is calculated from your findings."
         >
@@ -142,6 +152,37 @@ function Assessment({
     );
 }
 
+function RevisionActions({
+    request,
+    revision,
+    candidate,
+}: {
+    request: Procurement;
+    revision: Revision;
+    candidate: Candidate;
+}) {
+    const [open, setOpen] = useState(false);
+    return (
+        <>
+            <RowActions
+                label={`Actions for ${revision.supplier_name_snapshot}`}
+            >
+                <DropdownMenuItem onSelect={() => setOpen(true)}>
+                    <ClipboardCheck />
+                    Record findings
+                </DropdownMenuItem>
+            </RowActions>
+            <Assessment
+                request={request}
+                revision={revision}
+                candidate={candidate}
+                open={open}
+                onOpenChange={setOpen}
+            />
+        </>
+    );
+}
+
 export function EvaluationPanel({
     request,
     revisions,
@@ -154,6 +195,10 @@ export function EvaluationPanel({
     buyer: boolean;
 }) {
     const active = rounds[0];
+    const candidateFor = (revision: Revision) =>
+        active?.candidates.find(
+            (entry) => entry.revision_uuid === revision.uuid,
+        );
     const precision = request.currency_precision ?? 2;
     return (
         <Section
@@ -183,10 +228,30 @@ export function EvaluationPanel({
                                         scope="col"
                                         className="text-foreground h-auto min-w-64 p-3"
                                     >
-                                        {revision.supplier_name_snapshot}
-                                        <p className="text-muted-foreground text-xs font-normal">
-                                            Revision {revision.revision_number}
-                                        </p>
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div>
+                                                {
+                                                    revision.supplier_name_snapshot
+                                                }
+                                                <p className="text-muted-foreground text-xs font-normal">
+                                                    Revision{' '}
+                                                    {revision.revision_number}
+                                                </p>
+                                            </div>
+                                            {buyer &&
+                                                active?.status === 'draft' &&
+                                                candidateFor(revision) && (
+                                                    <RevisionActions
+                                                        request={request}
+                                                        revision={revision}
+                                                        candidate={
+                                                            candidateFor(
+                                                                revision,
+                                                            ) as Candidate
+                                                        }
+                                                    />
+                                                )}
+                                        </div>
                                     </TableHead>
                                 ))}
                             </TableRow>
@@ -355,18 +420,6 @@ export function EvaluationPanel({
                                                         candidate?.disposition_reason
                                                     }
                                                 </p>
-                                                {candidate &&
-                                                    buyer &&
-                                                    active?.status ===
-                                                        'draft' && (
-                                                        <Assessment
-                                                            request={request}
-                                                            revision={revision}
-                                                            candidate={
-                                                                candidate
-                                                            }
-                                                        />
-                                                    )}
                                             </div>
                                         </TableCell>
                                     );

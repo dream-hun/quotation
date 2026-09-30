@@ -1,7 +1,14 @@
 import { Form, Link, http, usePage } from '@inertiajs/react';
 import type { VariantProps } from 'class-variance-authority';
 import { format, isValid, parse } from 'date-fns';
-import { CalendarIcon, CircleAlert, CircleCheck } from 'lucide-react';
+import {
+    ArrowUpRight,
+    CalendarIcon,
+    CircleAlert,
+    CircleCheck,
+    MoreHorizontal,
+    X,
+} from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ComponentProps, ComponentType, ReactNode } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -26,6 +33,11 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -82,15 +94,34 @@ const statusToneMap: Record<string, keyof typeof statusTones> = {
     all_invited: 'info',
 };
 
+const statusDots = {
+    success: 'bg-emerald-500',
+    danger: 'bg-red-500',
+    warning: 'bg-amber-500',
+    info: 'bg-sky-500',
+    neutral: 'bg-slate-400',
+};
+
+export function statusTone(value: string): keyof typeof statusTones {
+    return statusToneMap[value] ?? 'neutral';
+}
+
+export function statusLabel(value: string): string {
+    const label = value.replaceAll('_', ' ');
+    return label[0].toUpperCase() + label.slice(1);
+}
+
 export function Status({ value }: { value: string }) {
+    const tone = statusTone(value);
     return (
         <Badge
             variant="outline"
-            className={cn(
-                'rounded-full capitalize',
-                statusTones[statusToneMap[value] ?? 'neutral'],
-            )}
+            className={cn('gap-1.5 rounded-full capitalize', statusTones[tone])}
         >
+            <span
+                aria-hidden="true"
+                className={cn('size-1.5 rounded-full', statusDots[tone])}
+            />
             {value.replaceAll('_', ' ')}
         </Badge>
     );
@@ -119,7 +150,7 @@ export function PageHeader({
         <div className="flex flex-wrap items-end justify-between gap-4">
             <div className="grid gap-1">
                 {eyebrow && (
-                    <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs font-medium tracking-wide uppercase">
+                    <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
                         {eyebrow}
                     </div>
                 )}
@@ -141,25 +172,185 @@ export function PageHeader({
     );
 }
 
+export function StatGrid({ children }: { children: ReactNode }) {
+    return (
+        <div className="grid auto-rows-min gap-4 md:grid-cols-3">
+            {children}
+        </div>
+    );
+}
+
+const statTones = {
+    info: {
+        card: 'border-sky-200/70 bg-sky-50/70 dark:border-sky-900/60 dark:bg-sky-950/30',
+        icon: 'bg-sky-100 text-sky-700 dark:bg-sky-900/60 dark:text-sky-300',
+        past: 'bg-sky-200 dark:bg-sky-900',
+        current: 'bg-sky-600 dark:bg-sky-400',
+    },
+    warning: {
+        card: 'border-amber-200/70 bg-amber-50/70 dark:border-amber-900/60 dark:bg-amber-950/30',
+        icon: 'bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300',
+        past: 'bg-amber-200 dark:bg-amber-900',
+        current: 'bg-amber-500 dark:bg-amber-400',
+    },
+    success: {
+        card: 'border-emerald-200/70 bg-emerald-50/70 dark:border-emerald-900/60 dark:bg-emerald-950/30',
+        icon: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300',
+        past: 'bg-emerald-200 dark:bg-emerald-900',
+        current: 'bg-emerald-600 dark:bg-emerald-400',
+    },
+};
+
+type StatTrend = {
+    /** One count per week, oldest first; the last entry is the current week. */
+    values: number[];
+    /** ISO start date of each week. */
+    weeks: string[];
+    /** What is counted, e.g. "published". */
+    noun: string;
+};
+
+function weekLabel(isoDate: string): string {
+    return format(parse(isoDate, 'yyyy-MM-dd', new Date()), 'd MMM');
+}
+
+function TrendColumns({
+    trend,
+    tone,
+}: {
+    trend: StatTrend;
+    tone: keyof typeof statTones;
+}) {
+    const max = Math.max(...trend.values, 1);
+    const lastIndex = trend.values.length - 1;
+    return (
+        <div aria-hidden="true" className="flex h-14 items-end gap-0.5">
+            {trend.values.map((value, index) => (
+                <div
+                    key={trend.weeks[index]}
+                    className="group/bar relative flex h-full flex-1 items-end justify-center"
+                >
+                    <div
+                        className={cn(
+                            'w-full max-w-6 rounded-t-[4px] transition-opacity group-hover/bar:opacity-80',
+                            value === 0
+                                ? 'bg-border h-0.5 rounded-none'
+                                : index === lastIndex
+                                  ? statTones[tone].current
+                                  : statTones[tone].past,
+                        )}
+                        style={
+                            value === 0
+                                ? undefined
+                                : {
+                                      height: `${Math.max((value / max) * 100, 8)}%`,
+                                  }
+                        }
+                    />
+                    <span className="bg-popover text-popover-foreground pointer-events-none absolute bottom-full z-10 mb-1.5 hidden rounded-md border px-2 py-1 text-xs whitespace-nowrap shadow-sm group-hover/bar:block">
+                        <span className="text-muted-foreground">
+                            Week of {weekLabel(trend.weeks[index])}
+                        </span>{' '}
+                        <span className="font-medium tabular-nums">
+                            {value}
+                        </span>
+                    </span>
+                </div>
+            ))}
+        </div>
+    );
+}
+
 export function StatCard({
     label,
     value,
+    hint,
+    href,
     icon: Icon,
+    tone,
+    trend,
 }: {
     label: string;
     value: ReactNode;
+    hint?: ReactNode;
+    href?: ComponentProps<typeof Link>['href'];
     icon: ComponentType<{ className?: string }>;
+    tone: keyof typeof statTones;
+    trend?: StatTrend;
 }) {
-    return (
-        <div className="bg-card border-sidebar-border/70 dark:border-sidebar-border flex items-center justify-between rounded-xl border p-4">
-            <div className="grid gap-1">
-                <p className="text-muted-foreground text-sm">{label}</p>
-                <p className="text-2xl font-semibold tabular-nums">{value}</p>
-            </div>
-            <div className="bg-muted flex size-10 items-center justify-center rounded-lg">
-                <Icon className="text-muted-foreground size-5" />
-            </div>
-        </div>
+    const total = trend?.values.reduce((sum, count) => sum + count, 0) ?? 0;
+    const content = (
+        <>
+            <span className="flex items-start justify-between gap-3">
+                <span className="flex items-center gap-3">
+                    <span
+                        className={cn(
+                            'flex size-9 shrink-0 items-center justify-center rounded-lg',
+                            statTones[tone].icon,
+                        )}
+                    >
+                        <Icon aria-hidden="true" className="size-4.5" />
+                    </span>
+                    <span className="text-sm font-medium">{label}</span>
+                </span>
+                {href && (
+                    <ArrowUpRight
+                        aria-hidden="true"
+                        className="text-muted-foreground size-4 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                    />
+                )}
+            </span>
+            <span className="grid gap-0.5">
+                <span className="text-3xl font-semibold tracking-tight tabular-nums">
+                    {value}
+                </span>
+                {hint && (
+                    <span className="text-muted-foreground text-sm">
+                        {hint}
+                    </span>
+                )}
+            </span>
+            {trend && (
+                <span className="grid gap-2">
+                    <TrendColumns trend={trend} tone={tone} />
+                    <span className="text-muted-foreground flex justify-between gap-2 text-xs">
+                        <span>
+                            <span className="text-foreground font-medium tabular-nums">
+                                {total}
+                            </span>{' '}
+                            {trend.noun} in {trend.values.length} weeks
+                        </span>
+                        <span>This week</span>
+                    </span>
+                    <span className="sr-only">
+                        {`Weekly ${trend.noun}, oldest first: `}
+                        {trend.values
+                            .map(
+                                (count, index) =>
+                                    `week of ${weekLabel(trend.weeks[index])}: ${count}`,
+                            )
+                            .join(', ')}
+                    </span>
+                </span>
+            )}
+        </>
+    );
+    const className = cn(
+        'relative flex flex-col gap-4 rounded-xl border p-5',
+        statTones[tone].card,
+    );
+    return href ? (
+        <Link
+            href={href}
+            className={cn(
+                className,
+                'group focus-visible:ring-ring transition-shadow hover:shadow-sm focus-visible:ring-2 focus-visible:outline-none',
+            )}
+        >
+            {content}
+        </Link>
+    ) : (
+        <div className={className}>{content}</div>
     );
 }
 
@@ -174,7 +365,12 @@ export function EmptyState({
 }) {
     return (
         <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed px-4 py-10 text-center">
-            {Icon && <Icon className="text-muted-foreground size-8" />}
+            {Icon && (
+                <Icon
+                    aria-hidden="true"
+                    className="text-muted-foreground mb-1 size-6"
+                />
+            )}
             <p className="text-sm font-medium">{title}</p>
             {description && (
                 <p className="text-muted-foreground max-w-md text-sm">
@@ -691,23 +887,33 @@ export function ActionDialog({
     submit = 'Save',
     submitVariant = 'default',
     transform,
+    open: controlledOpen,
+    onOpenChange,
 }: {
     title: string;
     description?: string;
-    trigger?: ReactNode;
+    trigger?: ReactNode | null;
     triggerVariant?: VariantProps<typeof buttonVariants>['variant'];
     action: { url: string; method: 'post' | 'put' };
     children: ReactNode;
     submit?: string;
     submitVariant?: VariantProps<typeof buttonVariants>['variant'];
     transform?: ComponentProps<typeof Form>['transform'];
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
 }) {
-    const [open, setOpen] = useState(false);
+    const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+    const open = controlledOpen ?? uncontrolledOpen;
+    const setOpen = onOpenChange ?? setUncontrolledOpen;
     return (
         <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                {trigger ?? <Button variant={triggerVariant}>{title}</Button>}
-            </DialogTrigger>
+            {trigger !== null && (
+                <DialogTrigger asChild>
+                    {trigger ?? (
+                        <Button variant={triggerVariant}>{title}</Button>
+                    )}
+                </DialogTrigger>
+            )}
             <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>{title}</DialogTitle>
@@ -765,6 +971,145 @@ export function ActionDialog({
                 </Form>
             </DialogContent>
         </Dialog>
+    );
+}
+
+/**
+ * The trailing actions column of a data table: one grouped menu per row, so
+ * rows never carry inline buttons.
+ */
+export function RowActions({
+    label,
+    children,
+}: {
+    label: string;
+    children: ReactNode;
+}) {
+    return (
+        <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="data-[state=open]:bg-muted size-8"
+                >
+                    <MoreHorizontal />
+                    <span className="sr-only">{label}</span>
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+                {children}
+            </DropdownMenuContent>
+        </DropdownMenu>
+    );
+}
+
+export function DataTableFrame({ children }: { children: ReactNode }) {
+    return <div className="overflow-hidden rounded-md border">{children}</div>;
+}
+
+export function TableToolbar({
+    search,
+    searchLabel,
+    filters,
+    children,
+    onChange,
+}: {
+    search: string | null | undefined;
+    searchLabel: string;
+    filters: {
+        name: string;
+        label: string;
+        value: string | null | undefined;
+        options: { value: string; label: string }[];
+    }[];
+    children?: ReactNode;
+    onChange: (values: Record<string, string>) => void;
+}) {
+    const current = Object.fromEntries([
+        ['q', search ?? ''],
+        ...filters.map((filter) => [filter.name, filter.value ?? '']),
+    ]) as Record<string, string>;
+    const apply = (changes: Record<string, string>) =>
+        onChange(
+            Object.fromEntries(
+                Object.entries({ ...current, ...changes }).filter(
+                    ([, value]) => value !== '',
+                ),
+            ),
+        );
+    const hasFilters = Object.values(current).some(Boolean);
+    return (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-1 flex-wrap items-center gap-2">
+                <form
+                    role="search"
+                    className="w-full sm:w-64"
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        apply({
+                            q: (
+                                event.currentTarget.elements.namedItem(
+                                    'q',
+                                ) as HTMLInputElement
+                            ).value.trim(),
+                        });
+                    }}
+                >
+                    <Input
+                        key={search ?? ''}
+                        name="q"
+                        type="search"
+                        aria-label={searchLabel}
+                        placeholder={searchLabel}
+                        defaultValue={search ?? ''}
+                        className="h-9"
+                    />
+                </form>
+                {filters.map((filter) => (
+                    <Select
+                        key={filter.name}
+                        value={filter.value || 'all'}
+                        onValueChange={(value) =>
+                            apply({
+                                [filter.name]: value === 'all' ? '' : value,
+                            })
+                        }
+                    >
+                        <SelectTrigger
+                            aria-label={filter.label}
+                            className="h-9 w-auto min-w-36"
+                        >
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">
+                                All {filter.label.toLowerCase()}
+                            </SelectItem>
+                            {filter.options.map((option) => (
+                                <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                >
+                                    {option.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                ))}
+                {hasFilters && (
+                    <Button
+                        variant="ghost"
+                        className="h-9 px-3"
+                        onClick={() => onChange({})}
+                    >
+                        Reset
+                        <X />
+                    </Button>
+                )}
+            </div>
+            {children}
+        </div>
     );
 }
 
@@ -834,13 +1179,15 @@ export function Section({
     return (
         <Card
             className={cn(
-                'border-sidebar-border/70 dark:border-sidebar-border gap-0 overflow-hidden py-0 shadow-none',
+                'border-sidebar-border/70 dark:border-sidebar-border gap-0 overflow-hidden rounded-xl py-0 shadow-none',
                 className,
             )}
         >
-            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
-                <div className="grid gap-1">
-                    <CardTitle className="text-base">{title}</CardTitle>
+            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 border-b px-4 py-3 md:px-5">
+                <div className="grid gap-0.5">
+                    <CardTitle className="text-sm font-semibold">
+                        {title}
+                    </CardTitle>
                     {description && (
                         <CardDescription>{description}</CardDescription>
                     )}
@@ -851,7 +1198,7 @@ export function Section({
                     </div>
                 )}
             </CardHeader>
-            <CardContent className="p-4">{children}</CardContent>
+            <CardContent className="p-4 md:p-5">{children}</CardContent>
         </Card>
     );
 }

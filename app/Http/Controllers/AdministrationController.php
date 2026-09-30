@@ -16,7 +16,7 @@ final class AdministrationController extends Controller
 {
     public function index(ProcurementIndexRequest $request, ReadAdministration $read): Response
     {
-        return Inertia::render('administration/index', $read->handle(($request->user() ?? abort(401)), $request->string('q')->toString()));
+        return Inertia::render('administration/index', $read->handle(($request->user() ?? abort(401))));
     }
 
     public function store(ManageProcurementAccessRequest $request, ManageProcurementAccess $manage): RedirectResponse

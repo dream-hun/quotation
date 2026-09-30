@@ -8,6 +8,8 @@ use App\Http\Controllers\EvaluationController;
 use App\Http\Controllers\ProcurementController;
 use App\Http\Controllers\ProcurementFileController;
 use App\Http\Controllers\QuotationController;
+use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\UserAccountController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -20,6 +22,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('procurement/{purchaseRequest}', [ProcurementController::class, 'show'])->name('procurement.show');
     Route::get('files/{attachment}', [ProcurementFileController::class, 'download'])->name('files.download');
     Route::get('administration', [AdministrationController::class, 'index'])->name('administration.index');
+    Route::get('administration/users', [UserAccountController::class, 'index'])->name('administration.users.index');
+    Route::get('administration/suppliers', [SupplierController::class, 'index'])->name('administration.suppliers.index');
     Route::middleware('throttle:60,1')->group(function (): void {
         Route::post('procurement', [ProcurementController::class, 'store'])->name('procurement.store');
         Route::put('procurement/{purchaseRequest}', [ProcurementController::class, 'update'])->name('procurement.update');
