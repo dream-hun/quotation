@@ -20,7 +20,7 @@ final readonly class ReadProcurementTasks
         $now = ProcurementGuard::clock();
         $columns = ['uuid', 'request_number', 'title', 'status', 'deadline_at', 'timezone'];
         $deadlines = (clone $visible)->where('status', 'open')->where('deadline_at', '>', $now)
-            ->where('deadline_at', '<=', $now->addDays(7))->orderBy('deadline_at')->orderBy('id');
+            ->where('deadline_at', '<=', $now->addDays(7))->oldest('deadline_at')->orderBy('id');
         $buyer = ProcurementAccess::can($actor, ProcurementPermission::ManageRequests);
         $approver = ProcurementAccess::can($actor, ProcurementPermission::DecideApprovals);
         $supplierId = ProcurementAccess::supplierId($actor);
@@ -45,7 +45,7 @@ final readonly class ReadProcurementTasks
                     ->whereHas('invitations', fn (Builder $query) => $query->where('supplier_id', $supplierId)->whereNull('declined_at')
                         ->whereDoesntHave('quotation', fn (Builder $query) => $query->whereNull('withdrawn_at')->has('latestSubmittedRevision'))));
             }
-        })->orderBy('created_at')->orderBy('id');
+        })->oldest()->orderBy('id');
 
         return [
             'approachingDeadlines' => ['total' => (clone $deadlines)->count(), 'data' => $deadlines->limit(8)->get($columns)],

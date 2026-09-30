@@ -25,7 +25,7 @@ final readonly class AssembleUploadChunks
 
         try {
             ProcurementGuard::require(array_all($chunks, fn (string $chunk): bool => $disk->exists($chunk)), 'The upload is incomplete. Try again.', 'file');
-            ProcurementGuard::require(array_sum(array_map(fn (string $chunk): int => $disk->size($chunk), $chunks)) <= config()->integer('procurement.max_upload_kilobytes') * 1024,
+            ProcurementGuard::require(array_sum(array_map($disk->size(...), $chunks)) <= config()->integer('procurement.max_upload_kilobytes') * 1024,
                 'The file may not be greater than '.config()->integer('procurement.max_upload_kilobytes').' kilobytes.', 'file');
 
             $path = tempnam(sys_get_temp_dir(), 'procurement-upload-');

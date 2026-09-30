@@ -31,10 +31,10 @@ final class UploadProcurementFileRequest extends FormRequest
         $file = $assemble->handle($user, $this->string('upload_uuid')->toString(), $this->integer('total_chunks'), $this->string('file_name')->toString());
         try {
             Validator::make(['file' => $file], ['file' => $this->documentRules()])->validate();
-        } catch (ValidationException $exception) {
+        } catch (ValidationException $validationException) {
             File::delete($file->getPathname());
 
-            throw $exception;
+            throw $validationException;
         }
 
         return $file;

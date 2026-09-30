@@ -22,7 +22,7 @@ final class SetupProcurement extends Command
         $email = $this->argument('email');
 
         return DB::transaction(function () use ($email): int {
-            if (User::role(ProcurementRole::Administrator)->exists()) {
+            if (User::query()->role(ProcurementRole::Administrator)->exists()) {
                 $this->error('An administrator already exists. Use Administration to manage access.');
 
                 return self::FAILURE;
