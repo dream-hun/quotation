@@ -6,6 +6,7 @@ import {
 } from '@/actions/App/Http/Controllers/ProcurementController';
 import {
     ActionDialog,
+    createUuid,
     DateTimeField,
     Field,
     SelectField,
@@ -139,7 +140,7 @@ export function RequestEditor({
                             setItems([
                                 ...items,
                                 {
-                                    uuid: crypto.randomUUID(),
+                                    uuid: createUuid(),
                                     line_number: items.length + 1,
                                     description: '',
                                     specification: '',
@@ -252,7 +253,7 @@ export function RequestEditor({
                     setCriteria([
                         ...criteria,
                         {
-                            uuid: crypto.randomUUID(),
+                            uuid: createUuid(),
                             name:
                                 'Additional specification ' +
                                 (criteria.length + 1),

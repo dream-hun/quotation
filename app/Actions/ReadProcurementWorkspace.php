@@ -72,7 +72,7 @@ final readonly class ReadProcurementWorkspace
 
         return [
             'request' => $request->only(['uuid', 'request_number', 'title', 'description', 'delivery_destination', 'currency_code', 'currency_precision', 'deadline_at', 'timezone', 'status', 'lock_version', 'cancellation_reason']) + [
-                'approver_uuid' => $request->assignedApprover?->uuid, 'approver_name' => $request->assignedApprover?->name,
+                'approver_uuid' => $supplierId === null ? $request->assignedApprover?->uuid : null, 'approver_name' => $supplierId === null ? $request->assignedApprover?->name : null,
                 'items' => $request->items->map(fn ($item) => $item->only(['uuid', 'line_number', 'description', 'specification', 'quantity', 'unit'])),
                 'criteria' => $request->criteria->map(fn ($criterion) => $criterion->only(['uuid', 'name', 'category', 'mandatory', 'assessment_rule'])),
             ],

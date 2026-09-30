@@ -7,6 +7,7 @@ import {
 import {
     ActionDialog,
     EmptyState,
+    money,
     Section,
     SelectField,
     Status,
@@ -153,6 +154,7 @@ export function EvaluationPanel({
     buyer: boolean;
 }) {
     const active = rounds[0];
+    const precision = request.currency_precision ?? 2;
     return (
         <Section
             title="Quotation comparison"
@@ -196,7 +198,10 @@ export function EvaluationPanel({
                                     cell: (revision: Revision) => (
                                         <strong>
                                             {request.currency_code}{' '}
-                                            {revision.total_amount}
+                                            {money(
+                                                revision.total_amount,
+                                                precision,
+                                            )}
                                         </strong>
                                     ),
                                 },
@@ -205,7 +210,11 @@ export function EvaluationPanel({
                                     cell: (revision: Revision) => (
                                         <>
                                             {revision.delivery_days} days ·
-                                            charge {revision.delivery_charge}
+                                            charge{' '}
+                                            {money(
+                                                revision.delivery_charge,
+                                                precision,
+                                            )}
                                         </>
                                     ),
                                 },
@@ -279,14 +288,32 @@ export function EvaluationPanel({
                                                 className="p-3 align-top whitespace-normal"
                                             >
                                                 <strong>
-                                                    {line?.line_total}
+                                                    {money(
+                                                        line?.line_total,
+                                                        precision,
+                                                    )}
                                                 </strong>
                                                 <p className="text-muted-foreground mt-1 text-xs">
-                                                    Unit {line?.unit_price} ·
-                                                    Discount{' '}
-                                                    {line?.discount_amount} ·
-                                                    Net {line?.line_net} · Tax{' '}
-                                                    {line?.tax_amount}
+                                                    Unit{' '}
+                                                    {money(
+                                                        line?.unit_price,
+                                                        precision,
+                                                    )}{' '}
+                                                    · Discount{' '}
+                                                    {money(
+                                                        line?.discount_amount,
+                                                        precision,
+                                                    )}{' '}
+                                                    · Net{' '}
+                                                    {money(
+                                                        line?.line_net,
+                                                        precision,
+                                                    )}{' '}
+                                                    · Tax{' '}
+                                                    {money(
+                                                        line?.tax_amount,
+                                                        precision,
+                                                    )}
                                                 </p>
                                                 <p className="mt-2">
                                                     {

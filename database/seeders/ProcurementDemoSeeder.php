@@ -49,6 +49,8 @@ final class ProcurementDemoSeeder extends Seeder
                 'organization_id' => $organization->id,
                 'request_number' => 'RFQ-DEMO-001',
                 'title' => 'Office furniture quotation comparison',
+                'description' => 'Chairs and desks for the new finance office. Quote delivered and assembled prices.',
+                'delivery_destination' => 'Head office, KG 7 Ave, Kigali',
                 'currency_code' => $currency->code,
                 'currency_precision' => $currency->minor_digits,
                 'timezone' => $organization->timezone,

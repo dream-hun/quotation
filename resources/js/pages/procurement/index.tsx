@@ -335,7 +335,10 @@ export default function Index({
                                             .replaceAll('_', ' ')}
                                     </span>
                                     <span className="text-muted-foreground text-xs whitespace-nowrap">
-                                        {timestamp(notice.created_at)}
+                                        {timestamp(
+                                            notice.created_at,
+                                            organization?.timezone,
+                                        )}
                                     </span>
                                 </Link>
                             ))}
