@@ -38,7 +38,7 @@ final readonly class DownloadProcurementFile
             abort(404);
         }
 
-        abort_unless($attachment->scan_status === 'clean' && Storage::disk('local')->exists($attachment->storage_key), 404);
+        abort_unless(Storage::disk('local')->exists($attachment->storage_key), 404);
         DB::transaction(fn () => $this->audit->handle($actor, $request, 'file.downloaded', $attachment));
 
         return Storage::disk('local')->download($attachment->storage_key, $attachment->original_name, [

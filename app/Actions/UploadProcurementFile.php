@@ -51,7 +51,7 @@ final readonly class UploadProcurementFile
                 $attachment = Attachment::query()->create([
                     'storage_key' => $storageKey, 'original_name' => mb_substr(basename($file->getClientOriginalName()), 0, 255),
                     'detected_media_type' => $file->getMimeType(), 'size_bytes' => $file->getSize(),
-                    'content_hash' => hash_file('sha256', $file->getRealPath()), 'scan_status' => 'pending',
+                    'content_hash' => hash_file('sha256', $file->getRealPath()),
                     'uploaded_by' => $actor->id, 'uploaded_at' => now(),
                 ]);
                 $parent->attachmentLinks()->create(['attachment_id' => $attachment->id]);

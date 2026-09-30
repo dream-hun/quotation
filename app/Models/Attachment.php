@@ -20,10 +20,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property string $detected_media_type
  * @property int $size_bytes
  * @property string $content_hash
- * @property string $scan_status
  * @property int $uploaded_by
  * @property CarbonImmutable $uploaded_at
- * @property CarbonImmutable|null $scanned_at
  * @property CarbonImmutable|null $created_at
  * @property-read User $uploadedBy
  * @property-read RequestAttachment|null $requestLink
@@ -69,7 +67,6 @@ final class Attachment extends Model
         return [
             'size_bytes' => 'integer',
             'uploaded_at' => 'immutable_datetime',
-            'scanned_at' => 'immutable_datetime',
         ];
     }
 }

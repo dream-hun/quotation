@@ -21,7 +21,6 @@ final class AttachmentFactory extends Factory
             'detected_media_type' => 'application/pdf',
             'size_bytes' => 1024,
             'content_hash' => hash('sha256', 'sample file'),
-            'scan_status' => 'pending',
             'uploaded_by' => User::factory(),
             'uploaded_at' => now(),
         ];

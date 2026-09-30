@@ -36,7 +36,6 @@ export type Procurement = {
 export type FileRecord = {
     uuid: string;
     original_name: string;
-    scan_status: string;
 };
 export type Line = {
     uuid: string;
@@ -141,6 +140,7 @@ export type Participation = {
     supplier_name: string;
     status: string;
     quotation_version: number;
+    invitation_email?: Record<string, number>;
 };
 export type Thread = {
     uuid: string;

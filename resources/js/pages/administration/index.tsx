@@ -60,8 +60,6 @@ type Props = {
     suppliers: Supplier[];
     currencies: Currency[];
     emailFailures: number;
-    pendingScans: number;
-    scannerConfigured: boolean;
     workerHealthy: boolean;
     q: string;
     organization: {
@@ -293,8 +291,6 @@ export default function Administration({
     currencies,
     organization,
     emailFailures,
-    pendingScans,
-    scannerConfigured,
     workerHealthy,
     q,
 }: Props) {
@@ -391,21 +387,6 @@ export default function Administration({
                                     workerHealthy
                                         ? 'Worker: recent heartbeat'
                                         : 'Worker: no recent heartbeat'
-                                }
-                            />
-                            <ReadinessItem
-                                healthy={scannerConfigured}
-                                label={
-                                    scannerConfigured
-                                        ? 'File scanner configured'
-                                        : 'File scanner awaiting configuration'
-                                }
-                            />
-                            <ReadinessItem
-                                healthy={pendingScans === 0}
-                                label={
-                                    pendingScans +
-                                    ' files awaiting security checks'
                                 }
                             />
                         </ul>

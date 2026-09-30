@@ -60,25 +60,13 @@ function Files({ files }: { files: FileRecord[] }) {
                     key={file.uuid}
                     className="flex flex-wrap items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm"
                 >
-                    {file.scan_status === 'clean' ? (
-                        <a
-                            href={download.url(file.uuid)}
-                            className="flex min-w-0 items-center gap-2 font-medium hover:underline"
-                        >
-                            <FileDown className="text-muted-foreground size-4 shrink-0" />
-                            <span className="truncate">
-                                {file.original_name}
-                            </span>
-                        </a>
-                    ) : (
-                        <span className="text-muted-foreground flex min-w-0 items-center gap-2">
-                            <FileText className="size-4 shrink-0" />
-                            <span className="truncate">
-                                {file.original_name}
-                            </span>
-                        </span>
-                    )}
-                    <Status value={file.scan_status} />
+                    <a
+                        href={download.url(file.uuid)}
+                        className="flex min-w-0 items-center gap-2 font-medium hover:underline"
+                    >
+                        <FileDown className="text-muted-foreground size-4 shrink-0" />
+                        <span className="truncate">{file.original_name}</span>
+                    </a>
                 </div>
             ))}
         </div>
@@ -103,7 +91,7 @@ function Upload({
             description={
                 'PDF, DOCX, XLSX, PNG or JPEG. Up to ' +
                 Math.round(uploads.maxKilobytes / 1024) +
-                ' MB per file and ten files per record. Files remain unavailable until security checks pass.'
+                ' MB per file and ten files per record. Accepted files are available immediately.'
             }
         >
             <input type="hidden" name="parent_type" value={type} />
@@ -404,6 +392,44 @@ export default function Show({
                                     {entry.supplier_name}
                                 </span>
                                 <Status value={entry.status} />
+                                {entry.invitation_email && (
+                                    <div className="text-muted-foreground basis-full text-sm">
+                                        <p>
+                                            Invitation email:{' '}
+                                            {entry.invitation_email.sent ?? 0}{' '}
+                                            sent ·{' '}
+                                            {(entry.invitation_email.pending ??
+                                                0) +
+                                                (entry.invitation_email
+                                                    .sending ?? 0)}{' '}
+                                            pending ·{' '}
+                                            {entry.invitation_email.failed ?? 0}{' '}
+                                            failed ·{' '}
+                                            {entry.invitation_email
+                                                .not_required ?? 0}{' '}
+                                            skipped
+                                        </p>
+                                        {(entry.invitation_email.failed ?? 0) >
+                                            0 && (
+                                            <p className="text-destructive">
+                                                Email delivery failed. Automatic
+                                                retries are limited to five
+                                                attempts; contact your
+                                                administrator if failures
+                                                persist. The in-app invitation
+                                                remains available.
+                                            </p>
+                                        )}
+                                        {Object.keys(entry.invitation_email)
+                                            .length === 0 && (
+                                            <p>
+                                                No active supplier accounts were
+                                                notified. Check supplier
+                                                membership in Administration.
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
                                 {can.supplier && open && (
                                     <ActionDialog
                                         title={

@@ -7,33 +7,31 @@ namespace App\Console\Commands;
 use App\Actions\CloseExpiredRequests;
 use App\Actions\DeliverProcurementMail;
 use App\Actions\PruneUploadChunks;
-use App\Actions\ScanProcurementFiles;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
-#[Description('Close expired requests, scan quarantined files, deliver notification outbox entries, and prune abandoned uploads')]
-#[Signature('procurement:process {--health : Check database, worker heartbeat and scanner configuration}')]
+#[Description('Close expired requests, deliver notification outbox entries, and prune abandoned uploads')]
+#[Signature('procurement:process {--health : Check database and worker heartbeat}')]
 final class ProcessProcurement extends Command
 {
-    public function handle(CloseExpiredRequests $close, ScanProcurementFiles $scan, DeliverProcurementMail $mail, PruneUploadChunks $prune): int
+    public function handle(CloseExpiredRequests $close, DeliverProcurementMail $mail, PruneUploadChunks $prune): int
     {
         if ($this->option('health')) {
             DB::select('SELECT 1');
-            $ready = Cache::has('procurement.worker_heartbeat') && filled(config('procurement.scanner_binary'));
-            $this->info($ready ? 'Procurement services are ready.' : 'Worker heartbeat or scanner configuration is missing.');
+            $ready = Cache::has('procurement.worker_heartbeat');
+            $this->info($ready ? 'Procurement services are ready.' : 'Worker heartbeat is missing.');
 
             return $ready ? self::SUCCESS : self::FAILURE;
         }
 
         $closed = $close->handle();
-        $scanned = $scan->handle();
         $sent = $mail->handle();
         $prune->handle();
         Cache::put('procurement.worker_heartbeat', now()->toISOString(), now()->addMinutes(10));
-        $this->info("Closed: $closed; scanned: $scanned; mail sent: $sent.");
+        $this->info("Closed: $closed; mail sent: $sent.");
 
         return self::SUCCESS;
     }

@@ -8,7 +8,6 @@ use App\Actions\FreezeEvaluation;
 use App\Actions\PruneUploadChunks;
 use App\Actions\PublishPurchaseRequest;
 use App\Actions\SaveQuotation;
-use App\Actions\ScanProcurementFiles;
 use App\Actions\StartEvaluation;
 use App\Actions\SubmitQuotation;
 use App\Concerns\ProcurementAccess;
@@ -33,6 +32,8 @@ use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
@@ -278,10 +279,14 @@ test('published requirements reject edits and stale extensions preserve the dead
     expect($request->title)->not->toBe('Changed scope');
 });
 
-test('quarantined documents block submission and private downloads reveal no competitor data', function (): void {
+test('validated documents are immediately available for submission and downloads remain private', function (): void {
     Storage::fake('local');
     $scenario = procurementScenario();
     $revision = resolve(SaveQuotation::class)->handle($scenario['supplier'], $scenario['request'], quotationInput($scenario['request']));
+    config(['procurement.require_quotation_attachment' => true]);
+    $this->actingAs($scenario['supplier'])->post(route('quotations.submit', $scenario['request']), [
+        'revision_uuid' => $revision->uuid, 'lock_version' => $revision->lock_version, 'submission_key' => (string) Str::uuid(),
+    ])->assertSessionHasErrors(['workflow' => 'Attach a supporting document.']);
     $this->actingAs($scenario['supplier'])->post(route('files.store', $scenario['request']), [
         'parent_type' => 'revision', 'parent_uuid' => $revision->uuid,
         'file' => UploadedFile::fake()->createWithContent('offer.pdf', "%PDF-1.4\nTest quotation\n%%EOF"),
@@ -289,16 +294,14 @@ test('quarantined documents block submission and private downloads reveal no com
     $attachment = Attachment::query()->firstOrFail();
     Storage::disk('local')->assertExists($attachment->storage_key);
 
-    $this->post(route('quotations.submit', $scenario['request']), ['revision_uuid' => $revision->uuid, 'lock_version' => $revision->lock_version, 'submission_key' => (string) Str::uuid()])->assertSessionHasErrors('workflow');
-    $this->get(route('files.download', $attachment))->assertNotFound();
-    $attachment->update(['scan_status' => 'clean', 'scanned_at' => now()]);
+    $this->post(route('quotations.submit', $scenario['request']), ['revision_uuid' => $revision->uuid, 'lock_version' => $revision->lock_version, 'submission_key' => (string) Str::uuid()])->assertSessionHasNoErrors();
     $this->get(route('files.download', $attachment))->assertDownload('offer.pdf');
     $this->actingAs($scenario['buyer'])->get(route('files.download', $attachment))->assertNotFound();
     $outsider = User::factory()->create()->refresh();
     SupplierMember::factory()->create(['user_id' => $outsider->id]);
     $this->actingAs($outsider)->get(route('files.download', $attachment))->assertNotFound();
 
-    expect($revision->refresh()->status)->toBe('draft');
+    expect($revision->refresh()->status)->toBe('submitted');
 });
 
 /** @return array{content: string, upload_uuid: string} */
@@ -320,7 +323,7 @@ function chunkedPdf(): string
     return "%PDF-1.4\n".str_repeat('Quotation evidence line. ', 100)."\n%%EOF";
 }
 
-test('a document uploaded in chunks is reassembled into one quarantined attachment', function (): void {
+test('a document uploaded in chunks is reassembled into one downloadable attachment', function (): void {
     Storage::fake('local');
     config(['procurement.upload_chunk_kilobytes' => 1]);
     $scenario = procurementScenario();
@@ -334,7 +337,7 @@ test('a document uploaded in chunks is reassembled into one quarantined attachme
 
     $attachment = Attachment::query()->firstOrFail();
     expect($attachment->original_name)->toBe('offer.pdf');
-    expect($attachment->scan_status)->toBe('pending');
+    $this->get(route('files.download', $attachment))->assertDownload('offer.pdf');
     expect($attachment->content_hash)->toBe(hash('sha256', $upload['content']));
     expect(Storage::disk('local')->get($attachment->storage_key))->toBe($upload['content']);
     expect(Storage::disk('local')->allFiles('procurement-chunks'))->toBe([]);
@@ -390,31 +393,18 @@ test('abandoned chunked uploads are pruned after a day', function (): void {
         ->toBe(['procurement-chunks/'.$scenario['supplier']->uuid.'/'.$fresh['upload_uuid']]);
 });
 
-function fakeScanner(string $name, string $script): string
-{
-    $directory = sys_get_temp_dir().'/procurement-scanner-'.Str::random(8);
-    mkdir($directory);
-    file_put_contents($directory.'/'.$name, "#!/bin/sh\n".$script."\n");
-    chmod($directory.'/'.$name, 0755);
+test('procurement processing and health checks work without a document scanner', function (): void {
+    Cache::forget('procurement.worker_heartbeat');
+    expect(Artisan::call('procurement:process', ['--health' => true]))->toBe(1);
 
-    return $directory.'/'.$name;
-}
+    expect(Artisan::call('procurement:process'))->toBe(0);
+    expect(Artisan::output())->toContain('Closed: 0; mail sent: 0.');
 
-test('scans record clean and infected results and keep failed scans pending', function (string $scanner, string $script, string $status): void {
-    Storage::fake('local');
-    Storage::disk('local')->put('procurement/offer.pdf', 'offer');
-    $attachment = Attachment::factory()->create(['storage_key' => 'procurement/offer.pdf', 'content_hash' => hash('sha256', 'offer'), 'scan_status' => 'pending']);
-    config(['procurement.scanner_binary' => fakeScanner($scanner, $script)]);
-
-    resolve(ScanProcurementFiles::class)->handle();
-
-    expect($attachment->refresh()->scan_status)->toBe($status);
-})->with([
-    'clean' => ['clamscan', 'exit 0', 'clean'],
-    'infected' => ['clamscan', 'exit 1', 'rejected'],
-    'scanner error' => ['clamscan', 'exit 2', 'pending'],
-    'clamdscan passes the file descriptor' => ['clamdscan', 'case " $* " in *" --fdpass "*) exit 0;; *) exit 2;; esac', 'clean'],
-]);
+    expect(Artisan::call('procurement:process', ['--health' => true]))->toBe(0);
+    expect(Artisan::output())->toContain('Procurement services are ready.');
+    $this->travel(11)->minutes();
+    expect(Artisan::call('procurement:process', ['--health' => true]))->toBe(1);
+});
 
 test('an invalid line rolls back all draft writes', function (): void {
     $scenario = procurementScenario();
@@ -661,4 +651,75 @@ test('list filters do not hide notifications for otherwise visible requests', fu
     $this->actingAs($scenario['supplier'])->get(route('procurement.index', ['q' => 'No matching request title']))
         ->assertInertia(fn (Assert $page): Assert => $page->where('requests.total', 0)
             ->has('notifications', 1)->where('notifications.0.request_uuid', $scenario['request']->uuid));
+});
+
+test('supplier overview exposes only invited deadlines and outstanding quotations', function (string $participation, int $tasks): void {
+    $this->freezeTime();
+    $scenario = procurementScenario();
+    PurchaseRequest::factory()->create(['status' => 'open', 'deadline_at' => now()->addDay()]);
+    $invitation = $scenario['request']->invitations()->firstOrFail();
+    if ($participation === 'declined') {
+        $invitation->update(['declined_at' => now()]);
+    } elseif (in_array($participation, ['submitted', 'withdrawn', 'replacement_draft'], true)) {
+        $revision = submittedQuote($scenario);
+        if ($participation === 'withdrawn') {
+            $revision->quotation()->update(['withdrawn_at' => now(), 'withdrawn_by' => $scenario['supplier']->id]);
+        } elseif ($participation === 'replacement_draft') {
+            resolve(SaveQuotation::class)->handle($scenario['supplier'], $scenario['request'], quotationInput($scenario['request']));
+        }
+    }
+
+    $this->actingAs($scenario['supplier'])->get(route('dashboard'))
+        ->assertInertia(fn (Assert $page): Assert => $page
+            ->where('approachingDeadlines.total', 1)->has('approachingDeadlines.data', 1)
+            ->where('approachingDeadlines.data.0.uuid', $scenario['request']->uuid)
+            ->missing('approachingDeadlines.data.0.assigned_approver_id')
+            ->where('assignedTasks.total', $tasks)->has('assignedTasks.data', $tasks));
+})->with(['invited' => ['invited', 1], 'declined' => ['declined', 0], 'submitted' => ['submitted', 0], 'withdrawn' => ['withdrawn', 1], 'replacement draft' => ['replacement_draft', 0]]);
+
+test('supplier actions and approaching deadlines end exactly at closure', function (): void {
+    $scenario = procurementScenario();
+    $this->travelTo($scenario['request']->deadline_at);
+
+    $this->actingAs($scenario['supplier'])->get(route('dashboard'))
+        ->assertInertia(fn (Assert $page): Assert => $page
+            ->where('assignedTasks.total', 0)->has('assignedTasks.data', 0)
+            ->where('approachingDeadlines.total', 0)->has('approachingDeadlines.data', 0));
+});
+
+test('approval work appears only for the assigned permitted approver and disappears after return', function (): void {
+    $scenario = procurementScenario();
+    $round = assessedRound($scenario, $this);
+    resolve(FreezeEvaluation::class)->handle($scenario['buyer'], $scenario['request'], [
+        'lock_version' => $round->lock_version, 'candidate_uuid' => $round->candidates()->firstOrFail()->uuid,
+        'reason' => 'Meets requirements.', 'participation_justification' => 'Market checked.',
+    ]);
+    $other = User::factory()->create();
+    $other->assignRole('approver');
+    $this->actingAs($other)->get(route('dashboard'))->assertInertia(fn (Assert $page): Assert => $page->where('assignedTasks.total', 0));
+    $scenario['buyer']->assignRole('approver');
+    $this->actingAs($scenario['buyer'])->get(route('dashboard'))->assertInertia(fn (Assert $page): Assert => $page->where('assignedTasks.total', 0));
+
+    $this->actingAs($scenario['approver'])->get(route('dashboard'))
+        ->assertInertia(fn (Assert $page): Assert => $page->where('assignedTasks.total', 1)
+            ->where('assignedTasks.data.0.uuid', $scenario['request']->uuid)
+            ->where('assignedTasks.data.0.action', 'Review recommendation'));
+
+    $case = $round->approvalCase()->firstOrFail();
+    $this->post(route('evaluations.decide', $scenario['request']), ['lock_version' => $case->lock_version, 'operation' => 'return', 'reason' => 'Review the findings.'])->assertSessionHasNoErrors();
+    $this->get(route('dashboard'))->assertInertia(fn (Assert $page): Assert => $page->where('assignedTasks.total', 0));
+});
+
+test('buyers see invitation delivery failures without exposing recipient data to suppliers', function (): void {
+    $scenario = procurementScenario();
+    ProcurementNotification::query()->where('event_type', 'invitation.received')->update(['email_status' => 'failed', 'email_attempts' => 1]);
+    submittedQuote($scenario);
+    ProcurementNotification::query()->where('event_type', 'quotation.receipt')->update(['email_status' => 'failed']);
+
+    $this->actingAs($scenario['buyer'])->get(route('procurement.show', $scenario['request']))
+        ->assertInertia(fn (Assert $page): Assert => $page
+            ->where('participation.0.invitation_email.failed', 1)
+            ->missing('participation.0.invitation_email.recipient_id'));
+    $this->actingAs($scenario['supplier'])->get(route('procurement.show', $scenario['request']))
+        ->assertInertia(fn (Assert $page): Assert => $page->missing('participation.0.invitation_email'));
 });

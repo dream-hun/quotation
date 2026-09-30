@@ -12,7 +12,7 @@ use App\Models\User;
 /** @phpstan-type Input array{q?: ?string, supplier?: ?string, status?: ?string, from?: ?string, to?: ?string} */
 final readonly class ReadProcurementIndex
 {
-    public function __construct(private ReadProcurementOptions $options) {}
+    public function __construct(private ReadProcurementOptions $options, private ReadProcurementTasks $tasks) {}
 
     /** @param Input $filters
      * @return array<string, mixed>
@@ -46,6 +46,7 @@ final readonly class ReadProcurementIndex
             'isSupplier' => ProcurementAccess::supplierId($actor) !== null,
             'organization' => Organization::query()->first()?->only(['name', 'timezone', 'default_currency_code']),
             ...$this->options->handle($buyer, $actor->id),
+            ...$this->tasks->handle($actor),
         ];
     }
 }

@@ -44,6 +44,8 @@ type Props = {
     organization: { name: string; timezone: string } | null;
     currencies: Currency[];
     approvers: Choice[];
+    approachingDeadlines: WorkList;
+    assignedTasks: WorkList;
     notifications: {
         uuid: string;
         event_type: string;
@@ -51,6 +53,53 @@ type Props = {
         created_at: string;
     }[];
 };
+
+type WorkList = {
+    total: number;
+    data: (Pick<
+        Procurement,
+        | 'uuid'
+        | 'request_number'
+        | 'title'
+        | 'status'
+        | 'deadline_at'
+        | 'timezone'
+    > & { action?: string })[];
+};
+
+function WorkItems({ items, empty }: { items: WorkList; empty: string }) {
+    return items.total === 0 ? (
+        <p className="text-muted-foreground text-sm">{empty}</p>
+    ) : (
+        <div className="grid gap-2">
+            {items.data.map((request) => (
+                <Link
+                    key={request.uuid}
+                    href={show(request.uuid)}
+                    className="hover:bg-muted focus-visible:ring-ring flex flex-col gap-1 rounded-lg border p-3 focus-visible:ring-2"
+                >
+                    <span className="font-medium">{request.title}</span>
+                    <span className="text-muted-foreground text-xs">
+                        {request.request_number}
+                    </span>
+                    {request.action && (
+                        <span className="text-sm">{request.action}</span>
+                    )}
+                    {request.deadline_at && (
+                        <span className="text-muted-foreground text-xs">
+                            Deadline:{' '}
+                            {timestamp(request.deadline_at, request.timezone)} (
+                            {request.timezone})
+                        </span>
+                    )}
+                </Link>
+            ))}
+            <p className="text-muted-foreground text-xs">
+                Showing {items.data.length} of {items.total}
+            </p>
+        </div>
+    );
+}
 
 const statuses = [
     'draft',
@@ -73,6 +122,8 @@ export default function Index({
     currencies,
     approvers,
     notifications,
+    approachingDeadlines,
+    assignedTasks,
 }: Props) {
     const hasFilters = Object.values(filters).some(Boolean);
     return (
@@ -111,6 +162,26 @@ export default function Index({
                         value={counts.awarded ?? 0}
                         icon={ShieldCheck}
                     />
+                </div>
+                <div className="grid items-start gap-4 lg:grid-cols-2">
+                    <Section
+                        title="Your next actions"
+                        description="Requests awaiting your work, oldest first."
+                    >
+                        <WorkItems
+                            items={assignedTasks}
+                            empty="You have no outstanding actions."
+                        />
+                    </Section>
+                    <Section
+                        title="Approaching deadlines"
+                        description="Open requests closing in the next seven days, soonest first."
+                    >
+                        <WorkItems
+                            items={approachingDeadlines}
+                            empty="No deadlines in the next seven days."
+                        />
+                    </Section>
                 </div>
                 <Section
                     title={

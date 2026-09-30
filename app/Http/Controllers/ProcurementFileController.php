@@ -31,7 +31,7 @@ final class ProcurementFileController extends Controller
             }
         }
 
-        return back()->with('success', 'File uploaded and awaiting security checks.');
+        return back()->with('success', 'File uploaded successfully.');
     }
 
     public function chunk(StoreUploadChunkRequest $request, PurchaseRequest $purchaseRequest, StoreUploadChunk $store): Response
