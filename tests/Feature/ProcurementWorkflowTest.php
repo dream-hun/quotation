@@ -182,6 +182,15 @@ test('uninvited suppliers cannot discover requests or their search counts', func
     $this->get(route('procurement.index'))->assertInertia(fn (Assert $page): Assert => $page->where('requests.total', 0));
 });
 
+test('suppliers do not receive the internal approver identity', function (): void {
+    $scenario = procurementScenario();
+
+    $this->actingAs($scenario['supplier'])->get(route('procurement.show', $scenario['request']))
+        ->assertInertia(fn (Assert $page): Assert => $page->where('request.approver_uuid', null)->where('request.approver_name', null));
+    $this->actingAs($scenario['buyer'])->get(route('procurement.show', $scenario['request']))
+        ->assertInertia(fn (Assert $page): Assert => $page->whereNot('request.approver_name', null));
+});
+
 test('submission is refused exactly at the deadline without partial writes', function (): void {
     $this->freezeTime();
     $scenario = procurementScenario();

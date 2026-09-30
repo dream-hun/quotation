@@ -26,7 +26,7 @@ final class QuotationController extends Controller
     {
         $revision = $submit->handle(($request->user() ?? abort(401)), $purchaseRequest, $request->string('revision_uuid')->toString(), $request->integer('lock_version'), $request->string('submission_key')->toString());
 
-        return back()->with('success', 'Submitted revision '.$revision->revision_number.' at '.$revision->submitted_at?->toISOString().'. Receipt retained below.');
+        return back()->with('success', 'Submitted revision '.$revision->revision_number.' at '.$revision->submitted_at?->setTimezone($purchaseRequest->timezone)->format('M j, Y g:i:s A').' ('.$purchaseRequest->timezone.'). Receipt retained below.');
     }
 
     public function participation(ProcurementMutationRequest $request, PurchaseRequest $purchaseRequest, WithdrawQuotation $withdraw): RedirectResponse

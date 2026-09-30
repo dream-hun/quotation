@@ -24,6 +24,7 @@ import {
     EmptyState,
     Field,
     Flash,
+    money,
     PageContainer,
     PageHeader,
     Pagination,
@@ -225,6 +226,7 @@ export default function Show({
                                 )}
                             {can.buyer &&
                                 can.commercial &&
+                                revisions.length > 0 &&
                                 ['open', 'closed'].includes(request.status) && (
                                     <ActionDialog
                                         title="Start evaluation"
@@ -314,19 +316,21 @@ export default function Show({
                         </div>
                     </Section>
                     <div className="grid content-start gap-4">
-                        <Section title="Decision controls">
-                            <p className="text-muted-foreground text-sm">
-                                Assigned approver
-                            </p>
-                            <p className="mt-1 font-medium">
-                                {request.approver_name ?? 'Not assigned'}
-                            </p>
-                            <p className="text-muted-foreground mt-3 border-t pt-3 text-sm">
-                                A recommendation requires complete findings. The
-                                creator and evaluator cannot approve their own
-                                procurement.
-                            </p>
-                        </Section>
+                        {can.internal && (
+                            <Section title="Decision controls">
+                                <p className="text-muted-foreground text-sm">
+                                    Assigned approver
+                                </p>
+                                <p className="mt-1 font-medium">
+                                    {request.approver_name ?? 'Not assigned'}
+                                </p>
+                                <p className="text-muted-foreground mt-3 border-t pt-3 text-sm">
+                                    A recommendation requires complete findings.
+                                    The creator and evaluator cannot approve
+                                    their own procurement.
+                                </p>
+                            </Section>
+                        )}
                         <Section
                             title="Request documents"
                             action={
@@ -549,7 +553,11 @@ export default function Show({
                                                 </dt>
                                                 <dd className="font-medium tabular-nums">
                                                     {revision.currency_code}{' '}
-                                                    {revision.total_amount}
+                                                    {money(
+                                                        revision.total_amount,
+                                                        request.currency_precision ??
+                                                            2,
+                                                    )}
                                                 </dd>
                                             </div>
                                             <div className="grid gap-1">

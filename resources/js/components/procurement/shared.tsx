@@ -387,7 +387,7 @@ export function DateTimeField({
     );
 }
 
-function createUploadId(): string {
+export function createUuid(): string {
     if (typeof crypto.randomUUID === 'function') {
         return crypto.randomUUID();
     }
@@ -483,7 +483,7 @@ export function ChunkedFileField({
         controller.current = abort;
         const chunkBytes = uploads.chunkKilobytes * 1024;
         const totalChunks = Math.max(1, Math.ceil(file.size / chunkBytes));
-        const uuid = createUploadId();
+        const uuid = createUuid();
         setProgress(0);
         try {
             for (let index = 0; index < totalChunks; index++) {
@@ -787,8 +787,8 @@ export function Pagination<T>({ page }: { page: PageData<T> }) {
     return (
         <div className="text-muted-foreground flex flex-wrap items-center justify-between gap-4 text-sm">
             <span>
-                {page.total} records · Page {page.current_page} of{' '}
-                {page.last_page}
+                {page.total} {page.total === 1 ? 'record' : 'records'} · Page{' '}
+                {page.current_page} of {page.last_page}
             </span>
             <div className="flex gap-2">
                 {page.prev_page_url ? (
@@ -853,6 +853,25 @@ export function Section({
             </CardHeader>
             <CardContent className="p-4">{children}</CardContent>
         </Card>
+    );
+}
+
+/**
+ * Formats a stored decimal string for display without floating point loss:
+ * thousands are grouped and the fraction shows at least the currency precision.
+ */
+export function money(value: string | null | undefined, precision = 2) {
+    if (value === null || value === undefined || value === '') {
+        return '—';
+    }
+
+    const [whole, fraction = ''] = value.split('.');
+    const significant = fraction.replace(/0+$/, '');
+    const digits = significant.padEnd(precision, '0');
+
+    return (
+        whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',') +
+        (digits ? '.' + digits : '')
     );
 }
 
