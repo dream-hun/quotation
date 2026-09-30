@@ -1,11 +1,19 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { Bell, Clock3, FileText, ShieldCheck } from 'lucide-react';
+import {
+    Bell,
+    ChevronRight,
+    FileText,
+    Send,
+    Stamp,
+    Trophy,
+} from 'lucide-react';
 import {
     index,
     show,
 } from '@/actions/App/Http/Controllers/ProcurementController';
 import { RequestEditor } from '@/components/procurement/request-editor';
 import {
+    DataTableFrame,
     DateField,
     EmptyState,
     Field,
@@ -16,10 +24,14 @@ import {
     Section,
     SelectField,
     StatCard,
+    StatGrid,
     Status,
+    statusLabel,
+    statusTone,
     timestamp,
 } from '@/components/procurement/shared';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import {
     Table,
     TableBody,
@@ -46,6 +58,12 @@ type Props = {
     approvers: Choice[];
     approachingDeadlines: WorkList;
     assignedTasks: WorkList;
+    trends: {
+        weeks: string[];
+        published: number[];
+        approvals: number[];
+        awards: number[];
+    };
     notifications: {
         uuid: string;
         event_type: string;
@@ -69,35 +87,115 @@ type WorkList = {
 
 function WorkItems({ items, empty }: { items: WorkList; empty: string }) {
     return items.total === 0 ? (
-        <p className="text-muted-foreground text-sm">{empty}</p>
+        <p className="text-muted-foreground py-2 text-sm">{empty}</p>
     ) : (
-        <div className="grid gap-2">
-            {items.data.map((request) => (
-                <Link
-                    key={request.uuid}
-                    href={show(request.uuid)}
-                    className="hover:bg-muted focus-visible:ring-ring flex flex-col gap-1 rounded-lg border p-3 focus-visible:ring-2"
-                >
-                    <span className="font-medium">{request.title}</span>
-                    <span className="text-muted-foreground text-xs">
-                        {request.request_number}
-                    </span>
-                    {request.action && (
-                        <span className="text-sm">{request.action}</span>
-                    )}
-                    {request.deadline_at && (
-                        <span className="text-muted-foreground text-xs">
-                            Deadline:{' '}
-                            {timestamp(request.deadline_at, request.timezone)} (
-                            {request.timezone})
-                        </span>
-                    )}
-                </Link>
-            ))}
-            <p className="text-muted-foreground text-xs">
-                Showing {items.data.length} of {items.total}
-            </p>
+        <div className="grid gap-3">
+            <ul className="-mx-4 divide-y border-y md:-mx-5">
+                {items.data.map((request) => (
+                    <li key={request.uuid}>
+                        <Link
+                            href={show(request.uuid)}
+                            className="group hover:bg-muted/60 focus-visible:ring-ring flex items-center gap-4 px-4 py-3 transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset md:px-5"
+                        >
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium">
+                                    {request.title}
+                                </p>
+                                <p className="text-muted-foreground mt-0.5 truncate text-xs">
+                                    <span className="font-mono">
+                                        {request.request_number}
+                                    </span>
+                                    {request.deadline_at &&
+                                        ` · closes ${timestamp(request.deadline_at, request.timezone)}`}
+                                </p>
+                            </div>
+                            {request.action ? (
+                                <span className="hidden shrink-0 text-xs font-medium sm:inline">
+                                    {request.action}
+                                </span>
+                            ) : (
+                                <Status value={request.status} />
+                            )}
+                            <ChevronRight
+                                aria-hidden="true"
+                                className="text-muted-foreground group-hover:text-foreground size-4 shrink-0 transition-colors"
+                            />
+                        </Link>
+                    </li>
+                ))}
+            </ul>
+            {items.total > items.data.length && (
+                <p className="text-muted-foreground text-xs">
+                    Showing {items.data.length} of {items.total}
+                </p>
+            )}
         </div>
+    );
+}
+
+const pipelineColors = {
+    success: 'bg-emerald-600 dark:bg-emerald-400',
+    danger: 'bg-red-500 dark:bg-red-400',
+    warning: 'bg-amber-500 dark:bg-amber-400',
+    info: 'bg-brand',
+    neutral: 'bg-slate-400 dark:bg-slate-500',
+};
+
+function Pipeline({ counts }: { counts: Record<string, number> }) {
+    const segments = statuses
+        .map((status) => ({ status, count: counts[status] ?? 0 }))
+        .filter((segment) => segment.count > 0);
+    const total = segments.reduce((sum, segment) => sum + segment.count, 0);
+    if (total === 0) {
+        return null;
+    }
+
+    return (
+        <Section
+            title="Pipeline"
+            description={`${total} ${total === 1 ? 'request' : 'requests'} by current status.`}
+        >
+            <div
+                className="flex h-2 w-full gap-0.5 overflow-hidden rounded-sm"
+                role="img"
+                aria-label={segments
+                    .map(
+                        ({ status, count }) =>
+                            `${statusLabel(status)}: ${count}`,
+                    )
+                    .join(', ')}
+            >
+                {segments.map(({ status, count }) => (
+                    <div
+                        key={status}
+                        className={pipelineColors[statusTone(status)]}
+                        style={{ width: `${(count / total) * 100}%` }}
+                    />
+                ))}
+            </div>
+            <ul className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
+                {segments.map(({ status, count }) => (
+                    <li key={status}>
+                        <Link
+                            href={index({ query: { status } })}
+                            className="text-muted-foreground hover:text-foreground flex items-center gap-2 text-sm transition-colors"
+                        >
+                            <span
+                                aria-hidden="true"
+                                className={cn(
+                                    'size-2 shrink-0 rounded-sm',
+                                    pipelineColors[statusTone(status)],
+                                )}
+                            />
+                            {statusLabel(status)}
+                            <span className="text-foreground font-medium tabular-nums">
+                                {count}
+                            </span>
+                        </Link>
+                    </li>
+                ))}
+            </ul>
+        </Section>
     );
 }
 
@@ -124,6 +222,7 @@ export default function Index({
     notifications,
     approachingDeadlines,
     assignedTasks,
+    trends,
 }: Props) {
     const hasFilters = Object.values(filters).some(Boolean);
     return (
@@ -132,10 +231,12 @@ export default function Index({
             <PageContainer>
                 <PageHeader
                     eyebrow={organization?.name ?? 'Quotation workspace'}
-                    title={
-                        isSupplier ? 'Your invitations' : 'Procurement overview'
+                    title={isSupplier ? 'Your invitations' : 'Overview'}
+                    description={
+                        isSupplier
+                            ? 'Your invitations, deadlines and submitted quotations.'
+                            : 'From a clear requirement to a decision you can explain.'
                     }
-                    description="From a clear requirement to a decision you can explain."
                     actions={
                         canCreate && (
                             <RequestEditor
@@ -146,43 +247,68 @@ export default function Index({
                     }
                 />
                 <Flash />
-                <div className="grid auto-rows-min gap-4 md:grid-cols-3">
+                <StatGrid>
                     <StatCard
                         label="Open for quotations"
                         value={counts.open ?? 0}
-                        icon={Clock3}
+                        hint={`${approachingDeadlines.total} closing within 7 days`}
+                        href={index({ query: { status: 'open' } })}
+                        icon={Send}
+                        tone="info"
+                        trend={{
+                            values: trends.published,
+                            weeks: trends.weeks,
+                            noun: 'published',
+                        }}
                     />
                     <StatCard
                         label="Awaiting approval"
                         value={counts.pending_approval ?? 0}
-                        icon={FileText}
+                        hint="With an independent approver"
+                        href={index({ query: { status: 'pending_approval' } })}
+                        icon={Stamp}
+                        tone="warning"
+                        trend={{
+                            values: trends.approvals,
+                            weeks: trends.weeks,
+                            noun: 'sent for approval',
+                        }}
                     />
                     <StatCard
-                        label="Awarded requests"
+                        label="Awarded"
                         value={counts.awarded ?? 0}
-                        icon={ShieldCheck}
+                        hint="Decisions on record"
+                        href={index({ query: { status: 'awarded' } })}
+                        icon={Trophy}
+                        tone="success"
+                        trend={{
+                            values: trends.awards,
+                            weeks: trends.weeks,
+                            noun: 'awarded',
+                        }}
                     />
-                </div>
+                </StatGrid>
                 <div className="grid items-start gap-4 lg:grid-cols-2">
                     <Section
-                        title="Your next actions"
-                        description="Requests awaiting your work, oldest first."
+                        title={`Your next actions${assignedTasks.total > 0 ? ` (${assignedTasks.total})` : ''}`}
+                        description="Requests waiting on you, oldest first."
                     >
                         <WorkItems
                             items={assignedTasks}
-                            empty="You have no outstanding actions."
+                            empty="Nothing is waiting on you."
                         />
                     </Section>
                     <Section
-                        title="Approaching deadlines"
-                        description="Open requests closing in the next seven days, soonest first."
+                        title={`Closing this week${approachingDeadlines.total > 0 ? ` (${approachingDeadlines.total})` : ''}`}
+                        description="Open requests with a deadline in the next 7 days."
                     >
                         <WorkItems
                             items={approachingDeadlines}
-                            empty="No deadlines in the next seven days."
+                            empty="No deadlines in the next 7 days."
                         />
                     </Section>
                 </div>
+                <Pipeline counts={counts} />
                 <Section
                     title={
                         isSupplier ? 'Invited requests' : 'Requests & history'
@@ -215,9 +341,7 @@ export default function Index({
                                 { value: '', label: 'All statuses' },
                                 ...statuses.map((status) => ({
                                     value: status,
-                                    label:
-                                        status[0].toUpperCase() +
-                                        status.slice(1).replaceAll('_', ' '),
+                                    label: statusLabel(status),
                                 })),
                             ]}
                         />
@@ -267,53 +391,57 @@ export default function Index({
                             }
                         />
                     ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Request</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead>Deadline</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {requests.data.map((request) => (
-                                    <TableRow
-                                        key={request.uuid}
-                                        className="cursor-pointer"
-                                        onClick={() =>
-                                            router.visit(show(request.uuid))
-                                        }
-                                    >
-                                        <TableCell className="py-3">
-                                            <Link
-                                                href={show(request.uuid)}
-                                                className="font-medium hover:underline"
-                                                onClick={(event) =>
-                                                    event.stopPropagation()
-                                                }
-                                            >
-                                                {request.title}
-                                            </Link>
-                                            <p className="text-muted-foreground text-xs">
-                                                {request.request_number}
-                                            </p>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Status value={request.status} />
-                                        </TableCell>
-                                        <TableCell>
-                                            {timestamp(
-                                                request.deadline_at,
-                                                request.timezone,
-                                            )}
-                                            <p className="text-muted-foreground text-xs">
-                                                {request.timezone}
-                                            </p>
-                                        </TableCell>
+                        <DataTableFrame>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Request</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead>Deadline</TableHead>
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {requests.data.map((request) => (
+                                        <TableRow
+                                            key={request.uuid}
+                                            className="cursor-pointer"
+                                            onClick={() =>
+                                                router.visit(show(request.uuid))
+                                            }
+                                        >
+                                            <TableCell className="py-3">
+                                                <Link
+                                                    href={show(request.uuid)}
+                                                    className="font-medium hover:underline"
+                                                    onClick={(event) =>
+                                                        event.stopPropagation()
+                                                    }
+                                                >
+                                                    {request.title}
+                                                </Link>
+                                                <p className="text-muted-foreground font-mono text-xs">
+                                                    {request.request_number}
+                                                </p>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Status
+                                                    value={request.status}
+                                                />
+                                            </TableCell>
+                                            <TableCell>
+                                                {timestamp(
+                                                    request.deadline_at,
+                                                    request.timezone,
+                                                )}
+                                                <p className="text-muted-foreground text-xs">
+                                                    {request.timezone}
+                                                </p>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </DataTableFrame>
                     )}
                     <div className="mt-4 border-t pt-4">
                         <Pagination page={requests} />
@@ -326,10 +454,13 @@ export default function Index({
                                 <Link
                                     key={notice.uuid}
                                     href={show(notice.request_uuid)}
-                                    className="hover:bg-muted flex items-center justify-between gap-3 rounded-md px-2 py-2 text-sm"
+                                    className="hover:bg-muted focus-visible:ring-ring flex items-center justify-between gap-3 rounded-md px-2 py-2 text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
                                 >
                                     <span className="flex items-center gap-3 capitalize">
-                                        <Bell className="text-muted-foreground size-4" />
+                                        <Bell
+                                            aria-hidden="true"
+                                            className="text-muted-foreground size-4"
+                                        />
                                         {notice.event_type
                                             .replaceAll('.', ' ')
                                             .replaceAll('_', ' ')}

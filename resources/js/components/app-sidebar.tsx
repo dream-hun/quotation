@@ -1,7 +1,9 @@
 import { Link, usePage } from '@inertiajs/react';
-import { LayoutGrid, Settings2 } from 'lucide-react';
-import { index as administration } from '@/actions/App/Http/Controllers/AdministrationController';
+import { Building2, LayoutGrid, Settings2, Users } from 'lucide-react';
+import { index as configuration } from '@/actions/App/Http/Controllers/AdministrationController';
 import { index as procurement } from '@/actions/App/Http/Controllers/ProcurementController';
+import { index as suppliers } from '@/actions/App/Http/Controllers/SupplierController';
+import { index as users } from '@/actions/App/Http/Controllers/UserAccountController';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -25,6 +27,24 @@ const mainNavItems: NavItem[] = [
     },
 ];
 
+const administrationNavItems: NavItem[] = [
+    {
+        title: 'Users',
+        href: users(),
+        icon: Users,
+    },
+    {
+        title: 'Suppliers',
+        href: suppliers(),
+        icon: Building2,
+    },
+    {
+        title: 'Configuration',
+        href: configuration(),
+        icon: Settings2,
+    },
+];
+
 export function AppSidebar() {
     const { isAdministrator } = usePage<{ isAdministrator: boolean }>().props;
     return (
@@ -42,20 +62,13 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain
-                    items={[
-                        ...mainNavItems,
-                        ...(isAdministrator
-                            ? [
-                                  {
-                                      title: 'Administration',
-                                      href: administration(),
-                                      icon: Settings2,
-                                  },
-                              ]
-                            : []),
-                    ]}
-                />
+                <NavMain items={mainNavItems} />
+                {isAdministrator && (
+                    <NavMain
+                        label="Administration"
+                        items={administrationNavItems}
+                    />
+                )}
             </SidebarContent>
 
             <SidebarFooter>
