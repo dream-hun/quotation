@@ -44,7 +44,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read User $preparedBy
  * @property-read User|null $submittedBy
  * @property-read Collection<int, QuotationLine> $lines
- * @property-read Collection<int, RevisionAttachment> $attachmentLinks
+ * @property-read Collection<int, Attachment> $attachments
  * @property-read Collection<int, EvaluationCandidate> $evaluationCandidates
  * @property-read Collection<int, ClarificationThread> $clarificationThreads
  */
@@ -85,10 +85,10 @@ final class QuotationRevision extends Model
         return $this->hasMany(QuotationLine::class, 'revision_id');
     }
 
-    /** @return HasMany<RevisionAttachment, $this> */
-    public function attachmentLinks(): HasMany
+    /** @return HasMany<Attachment, $this> */
+    public function attachments(): HasMany
     {
-        return $this->hasMany(RevisionAttachment::class, 'revision_id');
+        return $this->hasMany(Attachment::class, 'revision_id');
     }
 
     /** @return HasMany<EvaluationCandidate, $this> */

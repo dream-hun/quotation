@@ -83,11 +83,13 @@ final readonly class ManageProcurementAccess
                 $record->lock_version = ($record->lock_version ?? 0) + 1;
                 $record->save();
                 $record->syncRoles([]);
-                $record->supplierMembership()->delete();
+                $record->fill(['supplier_id' => null, 'supplier_membership_status' => null, 'supplier_assigned_by' => null, 'supplier_assigned_at' => null]);
                 if (! empty($data['supplier_uuid'])) {
                     $supplier = Supplier::query()->where('uuid', $data['supplier_uuid'])->where('status', 'active')->firstOrFail();
-                    $record->supplierMembership()->create(['supplier_id' => $supplier->id, 'status' => 'active', 'assigned_by' => $actor->id]);
+                    $record->fill(['supplier_id' => $supplier->id, 'supplier_membership_status' => 'active', 'supplier_assigned_by' => $actor->id, 'supplier_assigned_at' => now()]);
+                    $record->save();
                 } else {
+                    $record->save();
                     $record->syncRoles($roles);
                 }
 

@@ -10,7 +10,6 @@ use Database\Factories\AttachmentFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * @property int $id
@@ -24,9 +23,12 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property CarbonImmutable $uploaded_at
  * @property CarbonImmutable|null $created_at
  * @property-read User $uploadedBy
- * @property-read RequestAttachment|null $requestLink
- * @property-read RevisionAttachment|null $revisionLink
- * @property-read MessageAttachment|null $messageLink
+ * @property int|null $request_id
+ * @property-read PurchaseRequest|null $request
+ * @property int|null $revision_id
+ * @property-read QuotationRevision|null $revision
+ * @property int|null $message_id
+ * @property-read ClarificationMessage|null $message
  */
 final class Attachment extends Model
 {
@@ -43,22 +45,22 @@ final class Attachment extends Model
         return $this->belongsTo(User::class, 'uploaded_by');
     }
 
-    /** @return HasOne<RequestAttachment, $this> */
-    public function requestLink(): HasOne
+    /** @return BelongsTo<PurchaseRequest, $this> */
+    public function request(): BelongsTo
     {
-        return $this->hasOne(RequestAttachment::class, 'attachment_id');
+        return $this->belongsTo(PurchaseRequest::class, 'request_id');
     }
 
-    /** @return HasOne<RevisionAttachment, $this> */
-    public function revisionLink(): HasOne
+    /** @return BelongsTo<QuotationRevision, $this> */
+    public function revision(): BelongsTo
     {
-        return $this->hasOne(RevisionAttachment::class, 'attachment_id');
+        return $this->belongsTo(QuotationRevision::class, 'revision_id');
     }
 
-    /** @return HasOne<MessageAttachment, $this> */
-    public function messageLink(): HasOne
+    /** @return BelongsTo<ClarificationMessage, $this> */
+    public function message(): BelongsTo
     {
-        return $this->hasOne(MessageAttachment::class, 'attachment_id');
+        return $this->belongsTo(ClarificationMessage::class, 'message_id');
     }
 
     /** @return array<string, string> */

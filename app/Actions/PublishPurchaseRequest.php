@@ -48,11 +48,11 @@ final readonly class PublishPurchaseRequest
 
             $request->lock_version++;
             $request->save();
-            $suppliers->load(['members' => fn (Relation $query) => $query->where('status', 'active')->select(['id', 'supplier_id', 'user_id'])]);
+            $suppliers->load(['members' => fn (Relation $query) => $query->where('supplier_membership_status', 'active')->select(['id', 'supplier_id'])]);
             foreach ($suppliers as $supplier) {
                 $invitation = $request->invitations()->firstOrCreate(['supplier_id' => $supplier->id],
                     ['invited_by' => $actor->id, 'invited_at' => now()]);
-                $recipients = $supplier->members->pluck('user_id')->all();
+                $recipients = $supplier->members->pluck('id')->all();
                 $this->notify->handle($request, $recipients, 'invitation.received', 'invitation:'.$invitation->uuid);
             }
 

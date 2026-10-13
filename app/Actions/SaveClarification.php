@@ -8,7 +8,6 @@ use App\Concerns\ProcurementAccess;
 use App\Concerns\ProcurementGuard;
 use App\Enums\ProcurementPermission;
 use App\Models\PurchaseRequest;
-use App\Models\SupplierMember;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -53,10 +52,10 @@ final readonly class SaveClarification
                 $thread->messages()->create(['author_id' => $actor->id, 'body' => $data['body']]);
             }
 
-            $recipients = SupplierMember::query()->where('status', 'active')
+            $recipients = User::query()->where('supplier_membership_status', 'active')
                 ->when($thread->supplier_id !== null, fn ($query) => $query->where('supplier_id', $thread->supplier_id),
                     fn ($query) => $query->whereIn('supplier_id', $request->invitations()->select('supplier_id')))
-                ->pluck('user_id')->all();
+                ->pluck('id')->all();
             $this->notify->handle($request, [...$recipients, $request->created_by], 'clarification.updated', 'thread:'.$thread->uuid.':'.$thread->lock_version);
             $this->audit->handle($actor, $request, 'clarification.updated', $thread);
         });

@@ -6,7 +6,6 @@ namespace App\Concerns;
 
 use App\Enums\ProcurementPermission;
 use App\Models\PurchaseRequest;
-use App\Models\SupplierMember;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -22,7 +21,7 @@ final class ProcurementAccess
     {
         return $user->status === 'active'
             && $user->roles()->whereHas('permissions', fn (Builder $query) => $query->where('name', $permission->value))->exists()
-            && ! $user->supplierMembership()->where('status', 'active')->exists();
+            && ! User::query()->whereKey($user->id)->whereNotNull('supplier_id')->where('supplier_membership_status', 'active')->exists();
     }
 
     public static function supplierId(User $user): ?int
@@ -31,7 +30,7 @@ final class ProcurementAccess
             return null;
         }
 
-        return SupplierMember::query()->where('user_id', $user->id)->where('status', 'active')
+        return User::query()->whereKey($user->id)->where('status', 'active')->where('supplier_membership_status', 'active')
             ->whereHas('supplier', fn (Builder $query) => $query->where('status', 'active'))->first()?->supplier_id;
     }
 

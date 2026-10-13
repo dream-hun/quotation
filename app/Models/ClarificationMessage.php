@@ -22,7 +22,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property CarbonImmutable|null $created_at
  * @property-read ClarificationThread $thread
  * @property-read User $author
- * @property-read Collection<int, MessageAttachment> $attachmentLinks
+ * @property-read Collection<int, Attachment> $attachments
  */
 final class ClarificationMessage extends Model
 {
@@ -45,10 +45,10 @@ final class ClarificationMessage extends Model
         return $this->belongsTo(User::class, 'author_id');
     }
 
-    /** @return HasMany<MessageAttachment, $this> */
-    public function attachmentLinks(): HasMany
+    /** @return HasMany<Attachment, $this> */
+    public function attachments(): HasMany
     {
-        return $this->hasMany(MessageAttachment::class, 'message_id');
+        return $this->hasMany(Attachment::class, 'message_id');
     }
 
     /** @return array<string, string> */

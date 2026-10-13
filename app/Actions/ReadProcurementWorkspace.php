@@ -25,7 +25,7 @@ final readonly class ReadProcurementWorkspace
         $supplierId = ProcurementAccess::supplierId($actor);
         $buyer = ProcurementAccess::can($actor, ProcurementPermission::ManageRequests);
         $commercial = ProcurementAccess::commercial($actor, $request);
-        $request->load(['items', 'criteria', 'assignedApprover:id,uuid,name', 'attachmentLinks.attachment']);
+        $request->load(['items', 'criteria', 'assignedApprover:id,uuid,name', 'attachments']);
         $invitations = $request->invitations()->when($supplierId !== null, fn ($query) => $query->where('supplier_id', $supplierId))
             ->with(['supplier', 'quotation.latestSubmittedRevision'])->get();
         $delivery = [];
@@ -59,15 +59,15 @@ final readonly class ReadProcurementWorkspace
             ->whereHas('quotation.invitation', fn ($query) => $query->where('request_id', $request->id)
                 ->when($supplierId !== null, fn ($query) => $query->where('supplier_id', $supplierId)))
             ->when($supplierId === null, fn ($query) => $query->whereIn('id', $commercial ? $latestIds : []))
-            ->with(['lines.requestItem', 'attachmentLinks.attachment'])->orderByDesc('revision_number')->get();
+            ->with(['lines.requestItem', 'attachments'])->orderByDesc('revision_number')->get();
         $revisionData = $revisions->map(fn ($revision): array => $revision->only(['uuid', 'revision_number', 'status', 'supplier_reference', 'supplier_name_snapshot', 'currency_code', 'valid_until', 'delivery_days', 'payment_terms', 'advance_percent', 'balance_due_days', 'delivery_charge', 'total_amount', 'submitted_at', 'submission_key', 'lock_version']) + [
             'lines' => $revision->lines->map(fn ($line): array => $line->only(['uuid', 'unit_price', 'discount_amount', 'tax_amount', 'line_net', 'line_total', 'offered_description', 'supplier_compliance_response', 'zero_price_reason']) + ['item_uuid' => $line->requestItem->uuid]),
-            'attachments' => $revision->attachmentLinks->map(fn ($link) => $link->attachment->only(['uuid', 'original_name'])),
+            'attachments' => $revision->attachments->map(fn ($attachment) => $attachment->only(['uuid', 'original_name'])),
         ]);
         $rounds = $request->evaluationRounds()->when(! $commercial, fn ($query) => $query->whereRaw('1 = 0'))->with(['candidates.quotationRevision', 'candidates.lineAssessments.quotationLine', 'candidates.criterionAssessments.criterion', 'approvalCase'])->orderByDesc('round_number')->get();
         $approver = $rounds->isNotEmpty() && ProcurementAccess::can($actor, ProcurementPermission::DecideApprovals);
         $threads = $request->clarificationThreads()->when($supplierId !== null, fn ($query) => $query->where(fn ($query) => $query->where('visibility', 'all_invited')->orWhere('supplier_id', $supplierId)))
-            ->with(['messages.author:id,name', 'messages.attachmentLinks.attachment'])->orderByDesc('id')->limit(50)->get();
+            ->with(['messages.author:id,name', 'messages.attachments'])->orderByDesc('id')->limit(50)->get();
 
         return [
             'request' => $request->only(['uuid', 'request_number', 'title', 'description', 'delivery_destination', 'currency_code', 'currency_precision', 'deadline_at', 'timezone', 'status', 'lock_version', 'cancellation_reason']) + [
@@ -85,7 +85,7 @@ final readonly class ReadProcurementWorkspace
                 'candidates' => $round->candidates->map($this->candidateData(...)),
             ]),
             'threads' => $threads->map(fn (ClarificationThread $thread): array => $this->threadData($thread, $actor)),
-            'attachments' => $request->attachmentLinks->map(fn ($link) => $link->attachment->only(['uuid', 'original_name'])),
+            'attachments' => $request->attachments->map(fn ($attachment) => $attachment->only(['uuid', 'original_name'])),
             'audit' => $supplierId === null ? $request->auditEvents()->orderByDesc('id')->paginate(25, ['uuid', 'action', 'actor_label', 'occurred_at', 'safe_details'], 'audit_page') : null,
             'can' => ['buyer' => $buyer, 'supplier' => $supplierId !== null, 'commercial' => $commercial, 'internal' => ProcurementAccess::internal($actor)],
             ...$this->options->handle($buyer, $request->created_by),
@@ -118,8 +118,8 @@ final readonly class ReadProcurementWorkspace
         $messages = [];
         foreach ($thread->messages as $message) {
             $files = [];
-            foreach ($message->attachmentLinks as $link) {
-                $files[] = $link->attachment->only(['uuid', 'original_name']);
+            foreach ($message->attachments as $attachment) {
+                $files[] = $attachment->only(['uuid', 'original_name']);
             }
 
             $messages[] = ['uuid' => $message->uuid, 'body' => $message->body, 'author' => $message->author->name,

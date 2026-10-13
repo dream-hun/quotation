@@ -24,7 +24,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property CarbonImmutable|null $created_at
  * @property CarbonImmutable|null $updated_at
  * @property int $lock_version
- * @property-read Collection<int, SupplierMember> $members
+ * @property-read Collection<int, User> $members
  * @property-read Collection<int, Invitation> $invitations
  * @property-read Collection<int, ClarificationThread> $clarificationThreads
  */
@@ -35,10 +35,10 @@ final class Supplier extends Model
 
     use HasUuidRouteKey;
 
-    /** @return HasMany<SupplierMember, $this> */
+    /** @return HasMany<User, $this> */
     public function members(): HasMany
     {
-        return $this->hasMany(SupplierMember::class, 'supplier_id');
+        return $this->hasMany(User::class, 'supplier_id');
     }
 
     /** @return HasMany<Invitation, $this> */

@@ -17,19 +17,19 @@ final readonly class DownloadProcurementFile
 
     public function handle(User $actor, Attachment $attachment): StreamedResponse
     {
-        $attachment->load(['requestLink.request', 'revisionLink.revision.quotation.invitation', 'messageLink.message.thread']);
-        if ($attachment->requestLink !== null) {
-            $request = $attachment->requestLink->request;
+        $attachment->load(['request', 'revision.quotation.invitation', 'message.thread']);
+        if ($attachment->request !== null) {
+            $request = $attachment->request;
             ProcurementAccess::view($actor, $request);
-        } elseif ($attachment->revisionLink !== null) {
-            $revision = $attachment->revisionLink->revision;
+        } elseif ($attachment->revision !== null) {
+            $revision = $attachment->revision;
             $invitation = $revision->quotation->invitation;
             $request = $invitation->request()->firstOrFail();
             ProcurementAccess::view($actor, $request);
             abort_unless(ProcurementAccess::supplierId($actor) === $invitation->supplier_id
                 || ($revision->status === 'submitted' && ProcurementAccess::commercial($actor, $request)), 404);
-        } elseif ($attachment->messageLink !== null) {
-            $thread = $attachment->messageLink->message->thread;
+        } elseif ($attachment->message !== null) {
+            $thread = $attachment->message->thread;
             $request = $thread->request()->firstOrFail();
             ProcurementAccess::view($actor, $request);
             abort_unless(ProcurementAccess::internal($actor) || $thread->visibility === 'all_invited'
