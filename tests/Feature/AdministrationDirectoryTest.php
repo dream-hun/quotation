@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use App\Models\Supplier;
-use App\Models\SupplierMember;
 use App\Models\User;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -33,7 +32,7 @@ test('administrators list suppliers with active representatives', function (): v
     $admin = administrator();
     $supplier = Supplier::factory()->create(['legal_name' => 'Northline Scientific']);
     Supplier::factory()->create(['legal_name' => 'Meridian Lab Supply']);
-    SupplierMember::factory()->create(['supplier_id' => $supplier->id, 'status' => 'active']);
+    User::factory()->supplierRepresentative($supplier)->create();
 
     $this->actingAs($admin)->get(route('administration.suppliers.index', ['q' => 'Northline']))
         ->assertInertia(fn (Assert $page): Assert => $page->component('administration/suppliers')

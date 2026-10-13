@@ -24,17 +24,17 @@ final readonly class ReadUserAccounts
             ->when($filters['q'] ?? null, fn (Builder $query, string $search) => $query->where(fn (Builder $query) => $query
                 ->where('name', 'like', '%'.$search.'%')->orWhere('email', 'like', '%'.$search.'%')))
             ->when($filters['status'] ?? null, fn (Builder $query, string $status) => $query->where('status', $status))
-            ->when($filters['supplier'] ?? null, fn (Builder $query, string $supplier) => $query->whereHas('supplierMembership.supplier', fn (Builder $query) => $query->where('uuid', $supplier)))
-            ->when($role === 'supplier', fn (Builder $query) => $query->has('supplierMembership'))
-            ->when($role === 'none', fn (Builder $query) => $query->doesntHave('roles')->doesntHave('supplierMembership'))
+            ->when($filters['supplier'] ?? null, fn (Builder $query, string $supplier) => $query->whereHas('supplier', fn (Builder $query) => $query->where('uuid', $supplier)))
+            ->when($role === 'supplier', fn (Builder $query) => $query->has('supplier'))
+            ->when($role === 'none', fn (Builder $query) => $query->doesntHave('roles')->doesntHave('supplier'))
             ->when(ProcurementRole::tryFrom($role ?? ''), fn (Builder $query, ProcurementRole $internal) => $query->role($internal->value))
-            ->with(['roles', 'supplierMembership.supplier'])
+            ->with(['roles', 'supplier'])
             ->orderBy('name')->orderBy('id')
             ->paginate(20)->withQueryString()
             ->through(fn (User $user): array => $user->only(['uuid', 'name', 'email', 'status', 'lock_version']) + [
                 'roles' => $user->roles->pluck('name'),
-                'supplier_uuid' => $user->supplierMembership?->supplier->uuid,
-                'supplier_name' => $user->supplierMembership?->supplier->legal_name,
+                'supplier_uuid' => $user->supplier?->uuid,
+                'supplier_name' => $user->supplier?->legal_name,
             ]);
 
         return [

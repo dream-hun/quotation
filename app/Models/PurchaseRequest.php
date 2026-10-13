@@ -47,7 +47,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property-read Collection<int, EvaluationRound> $evaluationRounds
  * @property-read Award|null $award
  * @property-read Collection<int, ClarificationThread> $clarificationThreads
- * @property-read Collection<int, RequestAttachment> $attachmentLinks
+ * @property-read Collection<int, Attachment> $attachments
  * @property-read Collection<int, AuditEvent> $auditEvents
  * @property-read Collection<int, ProcurementNotification> $notifications
  * @property-read Collection<int, PurchaseRequest> $clones
@@ -125,10 +125,10 @@ final class PurchaseRequest extends Model
         return $this->hasMany(ClarificationThread::class, 'request_id');
     }
 
-    /** @return HasMany<RequestAttachment, $this> */
-    public function attachmentLinks(): HasMany
+    /** @return HasMany<Attachment, $this> */
+    public function attachments(): HasMany
     {
-        return $this->hasMany(RequestAttachment::class, 'request_id');
+        return $this->hasMany(Attachment::class, 'request_id');
     }
 
     /** @return HasMany<AuditEvent, $this> */

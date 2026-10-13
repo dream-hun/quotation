@@ -29,7 +29,7 @@ final class SetupProcurement extends Command
             }
 
             $user = User::query()->where('normalized_email', mb_strtolower($email))->lockForUpdate()->first();
-            if ($user === null || $user->status !== 'active' || $user->supplierMembership()->exists()) {
+            if ($user === null || $user->status !== 'active' || $user->supplier_id !== null) {
                 $this->error('Register an active internal account first.');
 
                 return self::FAILURE;

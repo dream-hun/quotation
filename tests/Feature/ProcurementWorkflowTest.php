@@ -26,7 +26,6 @@ use App\Models\QuotationLine;
 use App\Models\QuotationRevision;
 use App\Models\RequestItem;
 use App\Models\Supplier;
-use App\Models\SupplierMember;
 use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Database\QueryException;
@@ -57,8 +56,7 @@ function procurementScenario(): array
     }
 
     $company = Supplier::factory()->create();
-    $supplier = User::factory()->create()->refresh();
-    SupplierMember::factory()->create(['user_id' => $supplier->id, 'supplier_id' => $company->id]);
+    $supplier = User::factory()->supplierRepresentative($company)->create()->refresh();
     resolve(PublishPurchaseRequest::class)->handle($buyer, $request, $request->refresh()->lock_version, [$company->uuid]);
 
     return ['buyer' => $buyer, 'approver' => $approver, 'supplier' => $supplier, 'request' => $request->refresh()];
@@ -175,8 +173,7 @@ test('buyers see no commercial payload before close and never receive supplier d
 
 test('uninvited suppliers cannot discover requests or their search counts', function (): void {
     $scenario = procurementScenario();
-    $outsider = User::factory()->create()->refresh();
-    SupplierMember::factory()->create(['user_id' => $outsider->id]);
+    $outsider = User::factory()->supplierRepresentative()->create()->refresh();
 
     $this->actingAs($outsider)->get(route('procurement.show', $scenario['request']))->assertNotFound();
     $this->get(route('procurement.index'))->assertInertia(fn (Assert $page): Assert => $page->where('requests.total', 0));
@@ -306,8 +303,7 @@ test('validated documents are immediately available for submission and downloads
     $this->post(route('quotations.submit', $scenario['request']), ['revision_uuid' => $revision->uuid, 'lock_version' => $revision->lock_version, 'submission_key' => (string) Str::uuid()])->assertSessionHasNoErrors();
     $this->get(route('files.download', $attachment))->assertDownload('offer.pdf');
     $this->actingAs($scenario['buyer'])->get(route('files.download', $attachment))->assertNotFound();
-    $outsider = User::factory()->create()->refresh();
-    SupplierMember::factory()->create(['user_id' => $outsider->id]);
+    $outsider = User::factory()->supplierRepresentative()->create()->refresh();
     $this->actingAs($outsider)->get(route('files.download', $attachment))->assertNotFound();
 
     expect($revision->refresh()->status)->toBe('submitted');
@@ -362,7 +358,7 @@ test('chunked uploads are rejected when incomplete, of a forbidden type, or owne
     $uploader = $scenario['supplier'];
     if ($case === 'another user') {
         $uploader = User::factory()->create()->refresh();
-        SupplierMember::factory()->create(['user_id' => $uploader->id, 'supplier_id' => SupplierMember::query()->where('user_id', $scenario['supplier']->id)->value('supplier_id')]);
+        $uploader->update(['supplier_id' => $scenario['supplier']->supplier_id, 'supplier_membership_status' => 'active', 'supplier_assigned_by' => $scenario['buyer']->id, 'supplier_assigned_at' => now()]);
     }
 
     $this->actingAs($uploader)->post(route('files.store', $scenario['request']), [
@@ -376,8 +372,7 @@ test('chunked uploads are rejected when incomplete, of a forbidden type, or owne
 test('only people who can view a request may upload chunks to it', function (): void {
     Storage::fake('local');
     $scenario = procurementScenario();
-    $outsider = User::factory()->create()->refresh();
-    SupplierMember::factory()->create(['user_id' => $outsider->id]);
+    $outsider = User::factory()->supplierRepresentative()->create()->refresh();
 
     $this->actingAs($outsider)->post(route('files.chunk', $scenario['request']), [
         'upload_uuid' => (string) Str::uuid(), 'chunk_index' => 0,
@@ -627,14 +622,11 @@ test('invitations notify active members of each supplier once', function (): voi
     $activeMembers = [];
     $excludedMembers = [];
     foreach ($companies as $company) {
-        $active = User::factory()->create();
-        SupplierMember::factory()->create(['user_id' => $active->id, 'supplier_id' => $company->id]);
+        $active = User::factory()->supplierRepresentative($company)->create();
         $activeMembers[] = $active->id;
-        $inactive = User::factory()->create();
-        SupplierMember::factory()->create(['user_id' => $inactive->id, 'supplier_id' => $company->id, 'status' => 'inactive']);
+        $inactive = User::factory()->supplierRepresentative($company)->create(['supplier_membership_status' => 'inactive']);
         $excludedMembers[] = $inactive->id;
-        $disabled = User::factory()->create(['status' => 'disabled']);
-        SupplierMember::factory()->create(['user_id' => $disabled->id, 'supplier_id' => $company->id]);
+        $disabled = User::factory()->supplierRepresentative($company)->create(['status' => 'disabled']);
         $excludedMembers[] = $disabled->id;
     }
 

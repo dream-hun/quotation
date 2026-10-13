@@ -69,10 +69,10 @@ final readonly class DecideApproval
             $this->audit->handle($actor, $request, 'approval.'.$decision, $case, ['reason' => $reason]);
             $this->notify->handle($request, [$request->created_by, $round->prepared_by], 'approval.'.$decision, 'decision:'.$case->uuid);
             if ($decision !== 'return') {
-                $request->load(['invitations.quotation', 'invitations.supplier.members' => fn (Relation $query) => $query->where('status', 'active')->select(['id', 'supplier_id', 'user_id'])]);
+                $request->load(['invitations.quotation', 'invitations.supplier.members' => fn (Relation $query) => $query->where('supplier_membership_status', 'active')->select(['id', 'supplier_id'])]);
                 foreach ($request->invitations as $invitation) {
                     $selected = $decision === 'approve' && $invitation->quotation?->id === $revision->quotation_id;
-                    $recipients = $invitation->supplier->members->pluck('user_id')->all();
+                    $recipients = $invitation->supplier->members->pluck('id')->all();
                     $this->notify->handle($request, $recipients, $selected ? 'outcome.selected' : 'outcome.not_selected', 'outcome:'.$case->uuid);
                 }
             }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
+use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -38,9 +39,16 @@ final class UserFactory extends Factory
         ];
     }
 
-    /**
-     * Indicate that the model's email address should be unverified.
-     */
+    public function supplierRepresentative(?Supplier $supplier = null): static
+    {
+        return $this->state(fn (): array => [
+            'supplier_id' => $supplier->id ?? Supplier::factory(),
+            'supplier_membership_status' => 'active',
+            'supplier_assigned_by' => User::factory(),
+            'supplier_assigned_at' => now(),
+        ]);
+    }
+
     public function unverified(): static
     {
         return $this->state(fn (array $attributes): array => [

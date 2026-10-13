@@ -81,7 +81,7 @@ test('overview trends count weekly publications within the visible requests', fu
     PurchaseRequest::factory()->count(2)->create(['status' => 'open', 'published_at' => now()->subWeeks(3)]);
     PurchaseRequest::factory()->create(['status' => 'open', 'published_at' => now()->subWeeks(13)]);
     $supplier = User::factory()->create();
-    $supplier->supplierMembership()->create(['supplier_id' => Supplier::factory()->create()->id, 'status' => 'active', 'assigned_by' => $buyer->id]);
+    $supplier->update(['supplier_id' => Supplier::factory()->create()->id, 'supplier_membership_status' => 'active', 'supplier_assigned_by' => $buyer->id, 'supplier_assigned_at' => now()]);
 
     $this->actingAs($buyer)->get(route('dashboard'))
         ->assertInertia(fn (Assert $page): Assert => $page

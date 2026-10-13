@@ -11,8 +11,8 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -27,7 +27,11 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string $normalized_email
  * @property string $status
  * @property int $lock_version
- * @property-read SupplierMember|null $supplierMembership
+ * @property int|null $supplier_id
+ * @property string|null $supplier_membership_status
+ * @property int|null $supplier_assigned_by
+ * @property Carbon|null $supplier_assigned_at
+ * @property-read Supplier|null $supplier
  * @property-read Collection<int, PurchaseRequest> $purchaseRequests
  * @property-read Collection<int, ApprovalCase> $approvalCases
  * @property-read Collection<int, ProcurementNotification> $procurementNotifications
@@ -54,10 +58,10 @@ final class User extends Authenticatable implements PasskeyUser
     use PasskeyAuthenticatable;
     use TwoFactorAuthenticatable;
 
-    /** @return HasOne<SupplierMember, $this> */
-    public function supplierMembership(): HasOne
+    /** @return BelongsTo<Supplier, $this> */
+    public function supplier(): BelongsTo
     {
-        return $this->hasOne(SupplierMember::class);
+        return $this->belongsTo(Supplier::class);
     }
 
     /** @return HasMany<PurchaseRequest, $this> */
@@ -83,6 +87,7 @@ final class User extends Authenticatable implements PasskeyUser
     {
         return [
             'lock_version' => 'integer',
+            'supplier_assigned_at' => 'datetime',
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',

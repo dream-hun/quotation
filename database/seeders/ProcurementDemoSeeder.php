@@ -15,7 +15,6 @@ use App\Models\QuotationLine;
 use App\Models\QuotationRevision;
 use App\Models\RequestItem;
 use App\Models\Supplier;
-use App\Models\SupplierMember;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -80,14 +79,10 @@ final class ProcurementDemoSeeder extends Seeder
 
             foreach (['Kigali Office Supplies', 'Umucyo Furniture', 'Imena Trading'] as $index => $name) {
                 $supplier = Supplier::factory()->create(['legal_name' => $name]);
-                $representative = User::factory()->create([
+                $representative = User::factory()->supplierRepresentative($supplier)->create([
+                    'supplier_assigned_by' => $buyer->id,
                     'name' => $name.' Representative',
                     'email' => 'supplier'.($index + 1).'@procurement.example',
-                ]);
-                SupplierMember::factory()->create([
-                    'user_id' => $representative->id,
-                    'supplier_id' => $supplier->id,
-                    'assigned_by' => $buyer->id,
                 ]);
                 $invitation = Invitation::factory()->create([
                     'request_id' => $request->id,

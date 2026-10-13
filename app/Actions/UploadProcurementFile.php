@@ -7,7 +7,6 @@ namespace App\Actions;
 use App\Concerns\ProcurementAccess;
 use App\Concerns\ProcurementGuard;
 use App\Enums\ProcurementPermission;
-use App\Models\Attachment;
 use App\Models\PurchaseRequest;
 use App\Models\QuotationRevision;
 use App\Models\User;
@@ -45,16 +44,15 @@ final readonly class UploadProcurementFile
                     $parent = $thread->messages()->where('uuid', $parentUuid)->where('author_id', $actor->id)->firstOrFail();
                 }
 
-                ProcurementGuard::require($parent->attachmentLinks()->count() < 10, 'At most ten files are permitted per record.');
+                ProcurementGuard::require($parent->attachments()->count() < 10, 'At most ten files are permitted per record.');
                 $storageKey = $file->store('procurement', 'local');
                 ProcurementGuard::require(is_string($storageKey), 'Unable to store this file. Try again.');
-                $attachment = Attachment::query()->create([
+                $attachment = $parent->attachments()->create([
                     'storage_key' => $storageKey, 'original_name' => mb_substr(basename($file->getClientOriginalName()), 0, 255),
                     'detected_media_type' => $file->getMimeType(), 'size_bytes' => $file->getSize(),
                     'content_hash' => hash_file('sha256', $file->getRealPath()),
                     'uploaded_by' => $actor->id, 'uploaded_at' => now(),
                 ]);
-                $parent->attachmentLinks()->create(['attachment_id' => $attachment->id]);
                 $this->audit->handle($actor, $request, 'file.uploaded', $attachment);
             });
         } catch (Throwable $throwable) {

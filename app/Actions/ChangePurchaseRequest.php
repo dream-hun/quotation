@@ -7,7 +7,6 @@ namespace App\Actions;
 use App\Concerns\ProcurementAccess;
 use App\Concerns\ProcurementGuard;
 use App\Models\PurchaseRequest;
-use App\Models\SupplierMember;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -62,7 +61,7 @@ final readonly class ChangePurchaseRequest
 
             $request->lock_version++;
             $request->save();
-            $recipients = SupplierMember::query()->whereIn('supplier_id', $request->invitations()->select('supplier_id'))->where('status', 'active')->pluck('user_id')->all();
+            $recipients = User::query()->whereIn('supplier_id', $request->invitations()->select('supplier_id'))->where('supplier_membership_status', 'active')->pluck('id')->all();
             $this->notify->handle($request, $recipients, 'request.'.$operation, $request->uuid.':'.$request->lock_version);
             $this->audit->handle($actor, $request, 'request.'.$operation, $request, ['reason' => $reason]);
 

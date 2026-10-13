@@ -39,9 +39,9 @@ final readonly class SubmitQuotation
                 && $revision->valid_until->toDateString() >= now()->timezone($request->timezone)->toDateString()
                 && $revision->delivery_days !== null && filled($revision->payment_terms) && $revision->delivery_charge !== null,
                 'Complete currency, validity, delivery days, delivery charge and payment terms.');
-            $revision->load(['lines.requestItem', 'attachmentLinks']);
+            $revision->load(['lines.requestItem', 'attachments']);
             ProcurementGuard::require($revision->lines->count() === $request->items()->count(), 'Price every requested item.');
-            ProcurementGuard::require(! config('procurement.require_quotation_attachment') || $revision->attachmentLinks->isNotEmpty(), 'Attach a supporting document.');
+            ProcurementGuard::require(! config('procurement.require_quotation_attachment') || $revision->attachments->isNotEmpty(), 'Attach a supporting document.');
             ProcurementGuard::require($revision->delivery_charge !== null, 'Enter a delivery charge.');
             $total = QuotationMoney::amount($revision->delivery_charge, $request->currency_precision ?? 4);
             foreach ($revision->lines as $line) {

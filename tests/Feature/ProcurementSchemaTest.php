@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\ApprovalCase;
+use App\Models\Attachment;
 use App\Models\AuditEvent;
 use App\Models\Award;
 use App\Models\ClarificationMessage;
@@ -18,10 +19,8 @@ use App\Models\ProcurementNotification;
 use App\Models\PurchaseRequest;
 use App\Models\QuotationLine;
 use App\Models\QuotationRevision;
-use App\Models\RequestAttachment;
 use App\Models\RequestItem;
-use App\Models\RevisionAttachment;
-use App\Models\SupplierMember;
+use App\Models\Supplier;
 use App\Models\User;
 use Database\Seeders\ProcurementDemoSeeder;
 use Illuminate\Database\QueryException;
@@ -62,18 +61,23 @@ test('supplier membership and internal roles cannot coexist', function (bool $me
     $user = User::factory()->create();
 
     if ($membershipFirst) {
-        SupplierMember::factory()->create(['user_id' => $user->id]);
+        $user->update(['supplier_id' => Supplier::factory()->create()->id, 'supplier_membership_status' => 'active', 'supplier_assigned_by' => $user->id]);
         expect(fn () => $user->assignRole('buyer'))->toThrow(QueryException::class);
     } else {
         $user->assignRole('buyer');
-        expect(fn () => SupplierMember::factory()->create(['user_id' => $user->id]))->toThrow(QueryException::class);
+        expect(fn () => $user->update(['supplier_id' => Supplier::factory()->create()->id, 'supplier_membership_status' => 'active', 'supplier_assigned_by' => $user->id]))->toThrow(QueryException::class);
     }
 })->with([true, false]);
 
-test('one user cannot represent multiple suppliers', function (): void {
-    $membership = SupplierMember::factory()->create();
+test('reassigning a representative removes their previous supplier membership', function (): void {
+    $user = User::factory()->supplierRepresentative()->create();
+    $previous = $user->supplier()->firstOrFail();
+    $next = Supplier::factory()->create();
 
-    expect(fn () => SupplierMember::factory()->create(['user_id' => $membership->user_id]))->toThrow(QueryException::class);
+    $user->update(['supplier_id' => $next->id]);
+
+    expect($previous->members()->whereKey($user->id)->exists())->toBeFalse();
+    expect($next->members()->whereKey($user->id)->exists())->toBeTrue();
 });
 
 test('a submitted revision remains current while its replacement is a draft', function (): void {
@@ -130,7 +134,7 @@ test('submitted quotation lines reject direct database edits', function (): void
 test('submitted quotation attachment links cannot be added later', function (): void {
     $revision = QuotationRevision::factory()->submitted()->create();
 
-    expect(fn () => RevisionAttachment::factory()->create(['revision_id' => $revision->id]))
+    expect(fn () => Attachment::factory()->create(['revision_id' => $revision->id]))
         ->toThrow(QueryException::class, 'submitted_revision_children_are_immutable');
 });
 
@@ -279,16 +283,16 @@ test('award amounts must match approved evidence', function (): void {
 });
 
 test('one attachment cannot belong to multiple parent types', function (): void {
-    $link = RequestAttachment::factory()->create();
+    $attachment = Attachment::factory()->create(['request_id' => PurchaseRequest::factory()]);
 
-    expect(fn () => RevisionAttachment::factory()->create(['attachment_id' => $link->attachment_id]))
+    expect(fn () => Attachment::factory()->create(['request_id' => $attachment->request_id, 'revision_id' => QuotationRevision::factory()]))
         ->toThrow(QueryException::class, 'attachment_has_only_one_owner');
 });
 
 test('linked attachment contents cannot be replaced', function (): void {
-    $link = RequestAttachment::factory()->create();
+    $attachment = Attachment::factory()->create(['request_id' => PurchaseRequest::factory()]);
 
-    expect(fn () => $link->attachment->update(['storage_key' => 'replaced.pdf']))
+    expect(fn () => $attachment->update(['storage_key' => 'replaced.pdf']))
         ->toThrow(QueryException::class, 'linked_file_content_is_immutable');
 });
 
